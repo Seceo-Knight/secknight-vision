@@ -19,7 +19,7 @@ export const sequelizeDbProviders = {
             username: process.env.MYSQL_USERNAME,
             password: process.env.MYSQL_PASSWORD,
             database: process.env.MYSQL_DATABASE,
-            timezone: process.env.TIMEZONE_SEQUELIZE,
+            timezone: process.env.TIMEZONE_SEQUELIZE || '+00:00',
             logging: false
             // query: { raw: true }
         });
