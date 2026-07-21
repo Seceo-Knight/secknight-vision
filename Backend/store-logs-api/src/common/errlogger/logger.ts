@@ -21,7 +21,7 @@ export class Logger {
             format.timestamp({
                 format: 'YYYY-MM-DD HH:mm:ss'
             }),
-            format.printf(info => `${info.timestamp} ${process.pid} ${info.level}: ${info.message}`)
+            format.printf(info => `${(info as any).timestamp} ${process.pid} ${info.level}: ${info.message}`)
         ),
         transports: [
             new transports.Console({
@@ -29,7 +29,7 @@ export class Logger {
                 format: format.combine(
                     format.colorize(),
                     format.printf(
-                        info => `${info.timestamp} ${info.level}: ${info.message}`
+                        info => `${(info as any).timestamp} ${info.level}: ${info.message}`
                     )
                 )
             }),

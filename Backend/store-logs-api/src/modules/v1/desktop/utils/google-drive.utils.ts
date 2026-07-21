@@ -219,7 +219,7 @@ export class GoogleDriveUtils implements StorageUtilInterface {
       pageToken: '',
       fields: 'nextPageToken, files(*)',
     });
-    let mainFolderId = LoadLash.get(mainFolderData, 'files[0].id');
+    let mainFolderId = (LoadLash as any).get(mainFolderData, 'files[0].id');
     if (mainFolderId === undefined) {
       return false;
     }
@@ -231,7 +231,7 @@ export class GoogleDriveUtils implements StorageUtilInterface {
       fields: 'nextPageToken, files(*)',
     });
     if (userFolderData.files.length === 0) return true;
-    const userFolderId = LoadLash.get(userFolderData, 'files[0].id');
+    const userFolderId = (LoadLash as any).get(userFolderData, 'files[0].id');
 
     const updatedFolder = await this.drive.files.update({
       fileId: userFolderId,
