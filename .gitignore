@@ -20,3 +20,4 @@ package-lock.json
 
 # stray temp artifacts from in-place file edits — safe to ignore
 .fuse_hidden*
+.deploy-secrets
