@@ -367,6 +367,7 @@ class AuthService {
       product_id = product_id || parseInt(process.env.FREE_PLAN_ID) || 13;
       begin_date = begin_date || new Date();
       expire_date = expire_date || new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000); // +10 years
+      total_allowed_user_count = total_allowed_user_count || 100;
 
       begin_date = moment(begin_date).format('YYYY-MM-DD');
       let expire_time = moment(expire_date).format('YYYY-MM-DD');
