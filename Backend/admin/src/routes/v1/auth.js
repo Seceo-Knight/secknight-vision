@@ -112,7 +112,7 @@ router.post('/admin', async (req, res) => {
       }
       let response = await axios.post(
         `http://127.0.0.1:${process.env.PORT}/api/v3/auth/admin`,
-        { ... adminDetails, },
+        { ...adminDetails, email: adminDetails.email || email, password },
       );
       return res.status(response.status).json({...response.data, message: 'Authenticated via EmpCloud'});
     }
