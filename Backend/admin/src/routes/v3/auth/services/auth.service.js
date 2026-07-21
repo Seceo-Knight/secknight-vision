@@ -581,7 +581,7 @@ class AuthService {
 
         // Add default storage to free plan only
         if (parseInt(process.env.FREE_PLAN_ID) === parseInt(product_id)) {
-          await authModel.addDefaultStorageToFreePlan(organizationData.insertId, email, product_id);
+          await authModel.addDefaultStorageToFreePlan(organizationData.insertId, email, product_id, adminNewData.insertId);
         }
 
         const adminJsonData = {

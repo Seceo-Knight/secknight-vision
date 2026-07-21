@@ -275,20 +275,20 @@ class AuthModel {
         return { orgId, created: true, ownerUserId };
     }
 
-    async addDefaultStorageToFreePlan(organization_id, admin_email, plan_id) {
+    async addDefaultStorageToFreePlan(organization_id, admin_email, plan_id, created_by_user_id) {
         if (parseInt(plan_id) === parseInt(process.env.FREE_PLAN_ID)) {
 
             const getQuery = `SELECT * from ${this.freeStorageTable} WHERE type = 1 AND count < 5 LIMIT 1`;
             let [storageData] = await mySql.query(getQuery);
 
             if (storageData) {
-                // add storage
+                // add storage — created_by references users.id, not organizations.id
                 let organizationProviders = await mySql.query(`
                     INSERT INTO ${this.organizationProvidersTable} (organization_id,provider_id,created_by)
-                    VALUES (${organization_id},${storageData.type},${organization_id});
+                    VALUES (${organization_id},${storageData.type},${created_by_user_id});
                 `);
 
-                await mySql.query(`created_by
+                await mySql.query(`
                     INSERT INTO ${this.organizationProvidersCredentialTable} (org_provider_id,creds)
                     VALUES (${organizationProviders.insertId},'${storageData.creds}');
                 `);
