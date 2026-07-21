@@ -26,7 +26,8 @@
 
 > **_EmpMonitor: The Worlds #1 Advanced Open-Source Platform for Workforce Management & Productivity Enhancement_**
 
-
+> [!TIP]
+> **Deploying this yourself?** Skip straight to [How to Setup SecKnight Vision](#-how-to-setup-empmonitor) — one script (`deploy.sh`) sets up the whole server for you.
 
 
 ### Table of Contents
@@ -469,13 +470,51 @@ SecKnight Vision **Open Source** utilizes **_QT_**, a leading cross-platform fra
 
 ## ➤ How to Setup SecKnight Vision
 
-Follow these steps to install and configure SecKnight Vision efficiently:
+SecKnight Vision self-hosts on a single Ubuntu server. A script in this repo (`deploy.sh`) installs everything — MySQL, MongoDB, Redis, nginx, all 7 backend services, and the web frontend — and creates your first admin login, all in one run.
 
-1.  **[System Requirements](#)**
-2.  **[Download the Installer](#)**
-3.  **[Install SecKnight Vision](#)**
-4.  **[Configure the Software](#)**
-5.  **[Verify the Installation](#)**
+### System Requirements
+
+- A fresh **Ubuntu 22.04 or 24.04** server (a VM is fine), with at least **4 vCPUs, 8GB RAM, 80GB disk**.
+- The server must be reachable at a static **LAN IP address** (e.g. `192.168.1.68`) — you'll be asked for it during setup.
+- SSH access to the server as a user who can run `sudo`.
+
+### Install
+
+SSH into the server, then run:
+
+```bash
+sudo apt-get update && sudo apt-get install -y git
+git clone https://github.com/Seceo-Knight/secknight-vision.git
+cd secknight-vision
+sudo bash deploy.sh
+```
+
+The script will ask three questions:
+
+1. **Server LAN IP** — it auto-detects a default; press Enter to accept it, or type a different one.
+2. **Admin email** — the email you'll log in with.
+3. **Admin password** — at least 6 characters. This is what you'll type on the login page.
+
+Everything else is automatic — no other input needed. A full run takes roughly 10–15 minutes depending on your connection.
+
+### After it finishes
+
+The script prints a summary with your login URL. Open it in a browser on the same network:
+
+```
+http://<the-ip-you-entered>/admin-login
+```
+
+Log in with the email and password you entered. You're in.
+
+Generated secrets (database password, encryption keys) are saved to `.deploy-secrets` on the server — keep that file private, back it up somewhere safe, and consider deleting it from the server afterward.
+
+### If something goes wrong
+
+- The script is **safe to re-run**: `sudo bash deploy.sh` again picks up where it left off — it won't reinstall what's already there or destroy existing data.
+- Check whether all 7 backend services are healthy: `pm2 list` — every row should show `online` with a low restart count (`↺`).
+- To see why a specific service is unhealthy: `pm2 logs <service-name> --lines 50 --nostream`.
+- Service names to look for: `store-logs-api`, `web-socket-server`, `remote-socket`, `realtime`, `admin`, `productivity_report`, `cronjobs`.
 
 
 
