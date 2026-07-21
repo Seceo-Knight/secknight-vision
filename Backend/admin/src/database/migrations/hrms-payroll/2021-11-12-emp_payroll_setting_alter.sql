@@ -1,0 +1,1 @@
+ALTER TABLE employee_payroll_settings ADD salary_on_hold MEDIUMTEXT NULL DEFAULT NULL AFTER additional_components;

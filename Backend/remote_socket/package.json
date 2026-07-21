@@ -1,0 +1,35 @@
+{
+  "name": "remote",
+  "version": "0.0.1",
+  "description": "A remote socket connection code",
+  "main": "server.js",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "redis": "^3.1.2",
+    "ws": "^8.18.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start:dev": "nodemon server.js",
+    "start": "pm2 start server.js --name=RemoteService"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://bitbucket.org/sumitghosh007/empmonitor-new.git"
+  },
+  "keywords": [
+    "socket",
+    "remote",
+    "screenshot",
+    "live",
+    "streaming"
+  ],
+  "license": "ISC",
+  "bugs": {
+    "url": "https://bitbucket.org/sumitghosh007/empmonitor-new/issues"
+  },
+  "homepage": "https://bitbucket.org/sumitghosh007/empmonitor-new#readme"
+}

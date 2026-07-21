@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B0F70"/>
+      <stop offset="55%" stop-color="#6D28D9"/>
+      <stop offset="100%" stop-color="#3B0F70"/>
+    </linearGradient>
+    <linearGradient id="edgeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#0891B2"/>
+    </linearGradient>
+    <radialGradient id="eyeGlow" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#A5F3FC"/>
+      <stop offset="55%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#0E7490"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Shield outline (knight-guard silhouette) -->
+  <path d="M100 8
+           L172 34
+           C172 34 176 112 172 132
+           C165 168 132 188 100 196
+           C68 188 35 168 28 132
+           C24 112 28 34 28 34
+           Z"
+        fill="url(#shieldGrad)" stroke="url(#edgeGrad)" stroke-width="5"/>
+
+  <!-- inner bevel line for depth -->
+  <path d="M100 20
+           L161 42
+           C161 42 164 110 161 127
+           C155 157 128 174 100 181
+           C72 174 45 157 39 127
+           C36 110 39 42 39 42
+           Z"
+        fill="none" stroke="#22D3EE" stroke-opacity="0.35" stroke-width="2"/>
+
+  <!-- Vision / eye motif -->
+  <path d="M52 100
+           C68 76 132 76 148 100
+           C132 124 68 124 52 100 Z"
+        fill="#0B1220" fill-opacity="0.35"/>
+  <path d="M52 100
+           C68 76 132 76 148 100
+           C132 124 68 124 52 100 Z"
+        fill="none" stroke="url(#edgeGrad)" stroke-width="4"/>
+
+  <circle cx="100" cy="100" r="22" fill="url(#eyeGlow)"/>
+  <circle cx="100" cy="100" r="22" fill="none" stroke="#083344" stroke-width="2"/>
+  <circle cx="93" cy="93" r="6" fill="#F0FDFF" fill-opacity="0.9"/>
+
+  <!-- Crossguard / sword hint beneath the eye, reinforcing "Knight" -->
+  <path d="M100 128 L100 168" stroke="url(#edgeGrad)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M78 138 L122 138" stroke="url(#edgeGrad)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M100 168 L92 178 L108 178 Z" fill="url(#edgeGrad)"/>
+</svg>

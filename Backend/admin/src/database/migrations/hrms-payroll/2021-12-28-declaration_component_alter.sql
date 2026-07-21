@@ -1,0 +1,1 @@
+INSERT INTO `declaration_component` (`id`, `section`, `deduction_name`, `amount_limit`, `section_limit`, `status`, `is_other_deduction`, `is_other_income`, `created_at`, `updated_at`) VALUES (NULL, NULL, 'reimbursement', NULL, '1', '1', '1', '0', current_timestamp(), current_timestamp());

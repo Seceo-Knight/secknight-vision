@@ -1,0 +1,159 @@
+import React, { useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { MapPin } from "lucide-react";
+import CustomSelect from "@/components/common/elements/CustomSelect";
+import DateRangeCalendar from "@/components/common/elements/DateRangeCalendar";
+import { Button } from "@/components/ui/button";
+import EmpMobileTaskGeolocationLogo from "@/assets/mobile-task/geo-location.svg";
+import { useGpsStore } from "@/page/protected/admin/mobile-task-geolocation/gpsStore";
+
+const getStatusOptions = (t) => [
+    { value: "all", label: t("gps.all") },
+    { value: "enabled", label: t("gps.enabled") },
+    { value: "disabled", label: t("gps.disabled") },
+];
+
+// Backend get-total-task-time returns total worked time as a number of seconds.
+const formatDuration = (totalSeconds) => {
+    const s = Number(totalSeconds) || 0;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const parts = [];
+    if (h) parts.push(`${h}h`);
+    if (m) parts.push(`${m}m`);
+    parts.push(`${sec}s`);
+    return parts.join(" ");
+};
+
+const EmpMobileTaskGeolocation = () => {
+    const { t } = useTranslation();
+    const STATUS_OPTIONS = getStatusOptions(t);
+
+    const employees = useGpsStore((s) => s.employees);
+    const geoLog = useGpsStore((s) => s.geoLog);
+    const taskTime = useGpsStore((s) => s.taskTime);
+    const selectedEmployee = useGpsStore((s) => s.selectedEmployee);
+    const startDate = useGpsStore((s) => s.startDate);
+    const endDate = useGpsStore((s) => s.endDate);
+    const statusFilter = useGpsStore((s) => s.statusFilter);
+    const loading = useGpsStore((s) => s.loading);
+    const mapLoading = useGpsStore((s) => s.mapLoading);
+    const error = useGpsStore((s) => s.error);
+    const setSelectedEmployee = useGpsStore((s) => s.setSelectedEmployee);
+    const setDateRange = useGpsStore((s) => s.setDateRange);
+    const setStatusFilter = useGpsStore((s) => s.setStatusFilter);
+    const fetchEmployees = useGpsStore((s) => s.fetchEmployees);
+    const fetchGpsData = useGpsStore((s) => s.fetchGpsData);
+
+    useEffect(() => { fetchEmployees(); }, []);
+
+    const handleTrack = useCallback(() => { fetchGpsData(); }, [fetchGpsData]);
+
+    const handleDateRangeChange = useCallback((start, end) => {
+        if (!start || !end) return;
+        setDateRange(start, end);
+    }, [setDateRange]);
+
+    return (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-9 w-full">
+            {/* Header */}
+            <div className="flex flex-wrap items-start justify-between gap-4 mb-7">
+                <div className="flex items-center gap-2">
+                    <img alt="gps" className="w-20 h-20" src={EmpMobileTaskGeolocationLogo} />
+                    <div className="border-l-2 border-blue-500 pl-4">
+                        <h2 className="text-gray-800" style={{ fontSize: "21px", lineHeight: "18px" }}><span className="font-semibold">{t("gps.geoLabel")}</span>{" "}<span className="font-normal text-gray-500">{t("gps.locationTracking")}</span></h2>
+                        <p className="text-xs text-gray-400 mt-1">{t("gps.trackDesc")}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Filters — #115 — dropped the legacy col-span tweaks on the
+                 date column now that DateRangeCalendar itself is
+                 `block w-full min-w-0`. All four columns shrink evenly. */}
+            <div className="[&>*]:min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+                <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t("gps.gpsStatus")}</label>
+                    <CustomSelect placeholder={t("gps.all")} items={STATUS_OPTIONS} selected={statusFilter} onChange={setStatusFilter} width="full" />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t("employee")}</label>
+                    <CustomSelect
+                        placeholder={t("gps.selectEmployee")}
+                        items={employees}
+                        selected={selectedEmployee}
+                        onChange={setSelectedEmployee}
+                        width="full"
+                    />
+                    {/* #115 — if the API returned zero employees the dropdown
+                         panel is empty and appears broken. Tell the user why,
+                         and point at the GPS Status filter that narrows the
+                         set. Hidden while loading so it doesn't flash. */}
+                    {!loading && employees.length === 0 && (
+                        <p className="mt-1 text-[11px] text-slate-400">
+                            No employees match the current GPS status filter.
+                        </p>
+                    )}
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t("gps.dateRange")}</label>
+                    <DateRangeCalendar
+                        startDate={startDate}
+                        endDate={endDate}
+                        onChange={handleDateRangeChange}
+                        placeholder={t("gps.selectDateRange")}
+                    />
+                </div>
+                <div className="flex items-end">
+                    <Button className="bg-blue-500 hover:bg-blue-600 w-full" onClick={handleTrack} disabled={mapLoading || !selectedEmployee}>
+                        <MapPin className="w-4 h-4 mr-1.5" />
+                        {mapLoading ? t("gps.loading") : t("gps.trackLocation")}
+                    </Button>
+                </div>
+            </div>
+
+            {error && <div className="mb-4 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{error}</div>}
+
+            {/* Map placeholder */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden" style={{ height: 500 }}>
+                {geoLog.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                        <MapPin className="w-12 h-12 mb-3 text-slate-300" />
+                        <p className="text-sm font-medium">{t("gps.noGpsData")}</p>
+                        <p className="text-xs mt-1">{t("gps.noGpsDataDesc")}</p>
+                    </div>
+                ) : (
+                    <div className="p-4 h-full overflow-y-auto">
+                        <p className="text-sm font-semibold text-slate-700 mb-3">{t("gps.locationPoints")} ({geoLog.length})</p>
+                        <div className="space-y-2">
+                            {geoLog.map((point, idx) => (
+                                <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-slate-100">
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                                        <MapPin className="w-4 h-4 text-blue-500" />
+                                    </div>
+                                    <div className="text-xs">
+                                        <p className="font-medium text-slate-700">
+                                            Lat: {point.latitude ?? point.lat}, Lng: {point.longitude ?? point.lng}
+                                        </p>
+                                        <p className="text-slate-400 mt-0.5">{point.time || point.timestamp || point.created_at || "-"}</p>
+                                        {point.address && <p className="text-slate-500 mt-0.5">{point.address}</p>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Task time summary */}
+            {taskTime && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <p className="text-sm font-semibold text-slate-700 mb-1">{t("gps.taskTimeSummary")}</p>
+                    <p className="text-xs text-slate-500">{t("gps.totalTaskTime")}: {formatDuration(taskTime)}</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default EmpMobileTaskGeolocation;

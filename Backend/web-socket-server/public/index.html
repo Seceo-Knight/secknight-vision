@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+    <link rel="shortcut icon" href="#" />
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+</head>
+<body lang="en">
+<h1>SockJS Example</h1>
+
+<div>Please open dev console to see details.</div>
+
+<script>
+    let client, initServerUrl, lastMessageId = 0;
+    const start = (serverUrl = 'http://localhost:8080/notification') => {
+        const initServerUrl = serverUrl;
+        const client = new SockJS(serverUrl);
+
+        const write = (message) => {
+            const payload = JSON.stringify(message);
+            console.log('[ ] sending', payload);
+            return client.send(payload);
+        };
+
+        client.onopen = () => {
+            console.log('[*] open', client.protocol);
+            const auth = {
+                type: 'auth',
+                lastMessageId,
+                token: '0885159890ae6692aa86870f01e3bb86:0989ae52b8ee5a494858ca8634c64ecfe755de601694c332302b0df881725fc62889a83a6cfca0287b95287dd06e7358c5289c78bb7ed67e91ca3877d30d16730b0b351240ccf5d28b057237b71cd2ac445e07050e100ea490a0f567aa08dc9d58777c640f8da628a686a866e19f84544eecfcd5745b8afce02611027cc515eae8dc41a1187a47a3780d688c0e3ee7750ea810fb6d49497e8348c9e37b9a817bf1aae14e21dfb8a2766e4027661a6638da0e092e4ae36546308769c58d8e8bbbd36b740f0aa285e72d5296b4151bbb227007e04a21e839cd9d117c6f40950b61e97f0bd4f6054be42fa2ab537a678f197f69df331315c4b307fc658c57576708dd25d50caaaf47d0ed5c37b12abe723e7c9fe00807d50b25099bbfe0ec3afcd2',
+            };
+            write(auth);
+        };
+        client.onmessage = (e) => {
+            const message = JSON.parse(e.data);
+            console.log('[.] message', message);
+            switch (message.type) {
+                case 'messages':
+                    const delivered = message.messages.filter(message => message.delivered_at);
+                    const undelivered = message.messages.filter(message => !message.delivered_at);
+                    console.info('Delivered: ', delivered);
+                    console.info('Undelivered: ', undelivered);
+                    if (undelivered.length > 0) {
+                        write({type: 'delivered', delivered: undelivered.map(message => message.id)});
+                    }
+                    lastMessageId = Math.max(
+                        lastMessageId,
+                        ...delivered.map(message => message.id),
+                        ...undelivered.map(message => message.id),
+                    );
+                    return;
+                case 'newMessages':
+                    console.info('New messages: ', message.messages);
+                    lastMessageId = Math.max(
+                        lastMessageId,
+                        ...message.messages.map(message => message.id),
+                    );
+                    write({type: 'delivered', delivered: message.messages.map(message => message.id)});
+                    return;
+            }
+        };
+        client.onclose = () => {
+            console.log('[*] close');
+            setTimeout(() => {
+                start(initServerUrl);
+            }, 5000);
+        };
+    };
+    start();
+</script>
+</body>
+</html>

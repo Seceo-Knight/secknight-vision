@@ -1,0 +1,1043 @@
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { Search, Info, Eye, Trash2, CheckCircle, XCircle, Plus } from "lucide-react";
+import PaginationComponent from "@/components/common/Pagination";
+import CustomSelect from "@/components/common/elements/CustomSelect";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import ShowEntries from "@/components/common/elements/ShowEntries";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import EmpTimeclaimLogo from "@/assets/reports/time_claim.svg";
+import { useTimeClaimStore } from "@/page/protected/admin/time-claim/timeClaimStore";
+import DateRangeCalendar from "@/components/common/elements/DateRangeCalendar";
+import {
+  REQUEST_TYPES, STATUS_MAP,
+  createIdleRequest, createOfflineRequest,
+  createAttendanceRequest, createAttendanceRequestByManager,
+  fetchIdleAppWebData, fetchTotalOfflineTime, fetchReasons,
+} from "@/page/protected/admin/time-claim/service";
+import { fetchEmployeeList } from "@/page/protected/admin/employee-details/service";
+
+const getRequestTypeOptions = (t) => [
+  { key: t("timeclaim.idle"), value: REQUEST_TYPES.IDLE },
+  { key: t("timeclaim.offline"), value: REQUEST_TYPES.OFFLINE },
+  { key: t("timeclaim.break"), value: REQUEST_TYPES.BREAK },
+  { key: t("timeclaim.attendance"), value: REQUEST_TYPES.ATTENDANCE },
+];
+
+const getStatusOptions = (t) => [
+  { label: t("timeclaim.all"), value: "all" },
+  { label: t("timeclaim.pending"), value: "0" },
+  { label: t("timeclaim.approved"), value: "1" },
+  { label: t("timeclaim.declined"), value: "2" },
+];
+
+const avatarColors = ["bg-blue-500", "bg-cyan-500", "bg-sky-500", "bg-amber-500", "bg-rose-500"];
+
+const getInitials = (name) =>
+  (name || "?").split(" ").map((n) => n[0]).join("").slice(0, 1).toUpperCase();
+
+const StatusBadge = ({ status }) => {
+  const info = STATUS_MAP[status] || STATUS_MAP[0];
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${info.bg} border ${info.border} ${info.color} text-[11px] font-semibold`}>
+      <span className={`w-2 h-2 rounded-full ${info.color === "text-green-600" ? "bg-green-500" : info.color === "text-red-600" ? "bg-red-500" : "bg-amber-500"}`} />
+      {info.label}
+    </span>
+  );
+};
+
+// ─── View Request Modal ─────────────────────────────────────────────────────
+
+const ViewRequestModal = ({ open, onClose, row, onApprove, onDecline, requestType, isEmployee = false }) => {
+  const { t } = useTranslation();
+  if (!row) return null;
+
+  const isPending = row.status === 0;
+  const isIdle = requestType === REQUEST_TYPES.IDLE;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("timeclaim.viewRequest")}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <div><span className="text-slate-500">{t("timeclaim.fullName")}:</span> <span className="font-medium">{row.name}</span></div>
+            <div><span className="text-slate-500">{t("timeclaim.date")}:</span> <span className="font-medium">{row.date}</span></div>
+            {isIdle ? (
+              <>
+                <div><span className="text-slate-500">{t("timeclaim.startTime")}:</span> <span className="font-medium">{row.startTime}</span></div>
+                <div><span className="text-slate-500">{t("timeclaim.endTime")}:</span> <span className="font-medium">{row.endTime}</span></div>
+              </>
+            ) : requestType === REQUEST_TYPES.OFFLINE ? (
+              <div><span className="text-slate-500">{t("timeclaim.offlineTime")}:</span> <span className="font-medium">{row.offlineTime}</span></div>
+            ) : (
+              <>
+                <div><span className="text-slate-500">{t("timeclaim.startTime")}:</span> <span className="font-medium">{row.startTime}</span></div>
+                <div><span className="text-slate-500">{t("timeclaim.endTime")}:</span> <span className="font-medium">{row.endTime}</span></div>
+              </>
+            )}
+            {row.computerName && <div><span className="text-slate-500">{t("screenshotLogs.computer")}:</span> <span className="font-medium">{row.computerName}</span></div>}
+            {row.taskName && <div><span className="text-slate-500">{t("timeclaim.task")}:</span> <span className="font-medium">{row.taskName}</span></div>}
+          </div>
+          <div>
+            <span className="text-slate-500">{t("timeclaim.reason")}:</span>
+            <p className="mt-1 font-medium bg-slate-50 p-2 rounded">{row.reason}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500">{t("timeclaim.status")}:</span>
+            <StatusBadge status={row.status} />
+          </div>
+          <div><span className="text-slate-500">{t("timeclaim.approver")}:</span> <span className="font-medium">{row.approverName}</span></div>
+
+          {isIdle && row.activities?.length > 0 && (
+            <div>
+              <p className="text-slate-500 mb-1">{t("timeclaim.activities")}:</p>
+              <div className="max-h-40 overflow-y-auto border rounded">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-100">
+                    <tr>
+                      <th className="px-2 py-1 text-left">{t("timeclaim.appUrl")}</th>
+                      <th className="px-2 py-1 text-left">{t("timeclaim.status")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {row.activities.map((act, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="px-2 py-1">{act.url || act.app?.name || "-"}</td>
+                        <td className="px-2 py-1">
+                          {act.status === 1 ? <span className="text-green-600">{t("timeclaim.productive")}</span> :
+                            act.status === 2 ? <span className="text-red-600">{t("timeclaim.unproductive")}</span> :
+                              <span className="text-amber-600">{t("timeclaim.neutral")}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+        {isPending && !isEmployee && (
+          <DialogFooter className="gap-2">
+            <Button onClick={() => onApprove(row)} className="bg-green-600 hover:bg-green-700 text-xs">
+              <CheckCircle className="w-3.5 h-3.5 mr-1" /> {t("timeclaim.approve")}
+            </Button>
+            <Button onClick={() => onDecline(row)} variant="destructive" className="text-xs">
+              <XCircle className="w-3.5 h-3.5 mr-1" /> {t("timeclaim.decline")}
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ─── Delete Confirmation Modal ──────────────────────────────────────────────
+
+const DeleteModal = ({ open, onClose, onConfirm }) => {
+  const { t } = useTranslation();
+  return (
+  <Dialog open={open} onOpenChange={onClose}>
+    <DialogContent className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle>{t("timeclaim.deleteRequest")}</DialogTitle>
+      </DialogHeader>
+      <p className="text-sm text-slate-600">{t("timeclaim.deleteConfirm")}</p>
+      <DialogFooter className="gap-2">
+        <Button variant="outline" onClick={onClose} className="text-xs">{t("cancel")}</Button>
+        <Button variant="destructive" onClick={onConfirm} className="text-xs">{t("delete")}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+};
+
+// ─── Table Components Per Request Type ──────────────────────────────────────
+
+const IdleTable = ({ rows, tableLoading, onView, onDelete, selectedIds, toggleSelect, toggleSelectAll }) => {
+  const { t } = useTranslation();
+  return (
+  <Table className="min-w-[1100px] w-full">
+    <TableHeader>
+      <TableRow className="bg-[#E9E9E9] h-12">
+        <TableHead className="w-10 px-2">
+          <input type="checkbox" onChange={toggleSelectAll} checked={rows.filter((r) => r.status === 0).length > 0 && rows.filter((r) => r.status === 0).every((r) => selectedIds.includes(r._id))} className="accent-blue-500" />
+        </TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.fullName")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.date")}</TableHead>
+        <TableHead className="text-xs px-2 font-semibold">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EDF3FF] text-blue-500">
+            <span className="w-2 h-2 rounded-full bg-blue-500" /> {t("timeclaim.startTime")}
+          </span>
+        </TableHead>
+        <TableHead className="text-xs px-2 font-semibold">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFF0F0] text-red-500">
+            <span className="w-2 h-2 rounded-full bg-red-500" /> {t("timeclaim.endTime")}
+          </span>
+        </TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.computerName")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.reason")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.approver")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.status")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-white bg-[#7B9CDA] text-center">{t("action")}</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody className="bg-[#F9F9F9]">
+      {tableLoading ? (
+        <TableRow><TableCell colSpan={10} className="text-center py-10"><Spinner /></TableCell></TableRow>
+      ) : rows.length === 0 ? (
+        <TableRow><TableCell colSpan={10} className="text-center text-sm text-gray-400 py-10">{t("Nodata")}</TableCell></TableRow>
+      ) : rows.map((row, idx) => (
+        <TableRow key={row._id} className="h-12 text-xs text-slate-600">
+          <TableCell className="px-2">
+            {row.status === 0 && <input type="checkbox" checked={selectedIds.includes(row._id)} onChange={() => toggleSelect(row._id)} className="accent-blue-500" />}
+          </TableCell>
+          <TableCell className="px-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-full ${avatarColors[idx % avatarColors.length]} flex items-center justify-center text-[10px] font-semibold text-white shrink-0`}>
+                {getInitials(row.name)}
+              </div>
+              <span className="truncate text-[#121212]">{row.name}</span>
+            </div>
+          </TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.date}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.startTime}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.endTime}</TableCell>
+          <TableCell className="px-4 truncate max-w-[180px]">{row.computerName}</TableCell>
+          <TableCell className="px-4 max-w-[180px]"><span className="truncate text-[#121212]">{row.reason}</span></TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.approverName}</TableCell>
+          <TableCell className="px-4"><StatusBadge status={row.status} /></TableCell>
+          <TableCell className="px-4">
+            <div className="flex items-center gap-1 justify-center">
+              <Button size="sm" onClick={() => onView(row)} className="rounded-md bg-[#1A61DB] hover:bg-[#1A61DB]/90 text-[10px] font-semibold px-3 h-7 shadow-sm">
+                View <Eye className="w-3 h-3 ml-1" />
+              </Button>
+              {row.status === 0 && (
+                <Button size="sm" variant="ghost" onClick={() => onDelete(row)} className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+);
+};
+
+const OfflineTable = ({ rows, tableLoading, onView, onDelete, selectedIds, toggleSelect, toggleSelectAll }) => {
+  const { t } = useTranslation();
+  return (
+  <Table className="min-w-[1000px] w-full">
+    <TableHeader>
+      <TableRow className="bg-[#E9E9E9] h-12">
+        <TableHead className="w-10 px-2">
+          <input type="checkbox" onChange={toggleSelectAll} checked={rows.filter((r) => r.status === 0).length > 0 && rows.filter((r) => r.status === 0).every((r) => selectedIds.includes(r._id))} className="accent-blue-500" />
+        </TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.fullName")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.date")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.offlineTime")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.computerName")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.reason")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.approver")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.status")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-white bg-[#7B9CDA] text-center">{t("action")}</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody className="bg-[#F9F9F9]">
+      {tableLoading ? (
+        <TableRow><TableCell colSpan={9} className="text-center py-10"><Spinner /></TableCell></TableRow>
+      ) : rows.length === 0 ? (
+        <TableRow><TableCell colSpan={9} className="text-center text-sm text-gray-400 py-10">{t("Nodata")}</TableCell></TableRow>
+      ) : rows.map((row, idx) => (
+        <TableRow key={row._id} className="h-12 text-xs text-slate-600">
+          <TableCell className="px-2">
+            {row.status === 0 && <input type="checkbox" checked={selectedIds.includes(row._id)} onChange={() => toggleSelect(row._id)} className="accent-blue-500" />}
+          </TableCell>
+          <TableCell className="px-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-full ${avatarColors[idx % avatarColors.length]} flex items-center justify-center text-[10px] font-semibold text-white shrink-0`}>{getInitials(row.name)}</div>
+              <span className="truncate text-[#121212]">{row.name}</span>
+            </div>
+          </TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.date}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.offlineTime}</TableCell>
+          <TableCell className="px-4 truncate max-w-[180px]">{row.computerName}</TableCell>
+          <TableCell className="px-4 max-w-[180px] truncate text-[#121212]">{row.reason}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.approverName}</TableCell>
+          <TableCell className="px-4"><StatusBadge status={row.status} /></TableCell>
+          <TableCell className="px-4">
+            <div className="flex items-center gap-1 justify-center">
+              <Button size="sm" onClick={() => onView(row)} className="rounded-md bg-[#1A61DB] hover:bg-[#1A61DB]/90 text-[10px] font-semibold px-3 h-7 shadow-sm">
+                View <Eye className="w-3 h-3 ml-1" />
+              </Button>
+              {row.status === 0 && (
+                <Button size="sm" variant="ghost" onClick={() => onDelete(row)} className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+);
+};
+
+const BreakTable = ({ rows, tableLoading, onView, onDelete, selectedIds, toggleSelect, toggleSelectAll }) => {
+  const { t } = useTranslation();
+  return (
+  <Table className="min-w-[1100px] w-full">
+    <TableHeader>
+      <TableRow className="bg-[#E9E9E9] h-12">
+        <TableHead className="w-10 px-2">
+          <input type="checkbox" onChange={toggleSelectAll} checked={rows.filter((r) => r.status === 0).length > 0 && rows.filter((r) => r.status === 0).every((r) => selectedIds.includes(r._id))} className="accent-blue-500" />
+        </TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.fullName")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.date")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.breakTime")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.startTime")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.endTime")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.reason")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.approver")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.status")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-white bg-[#7B9CDA] text-center">{t("action")}</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody className="bg-[#F9F9F9]">
+      {tableLoading ? (
+        <TableRow><TableCell colSpan={10} className="text-center py-10"><Spinner /></TableCell></TableRow>
+      ) : rows.length === 0 ? (
+        <TableRow><TableCell colSpan={10} className="text-center text-sm text-gray-400 py-10">{t("Nodata")}</TableCell></TableRow>
+      ) : rows.map((row, idx) => (
+        <TableRow key={row._id} className="h-12 text-xs text-slate-600">
+          <TableCell className="px-2">
+            {row.status === 0 && <input type="checkbox" checked={selectedIds.includes(row._id)} onChange={() => toggleSelect(row._id)} className="accent-blue-500" />}
+          </TableCell>
+          <TableCell className="px-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-full ${avatarColors[idx % avatarColors.length]} flex items-center justify-center text-[10px] font-semibold text-white shrink-0`}>{getInitials(row.name)}</div>
+              <span className="truncate text-[#121212]">{row.name}</span>
+            </div>
+          </TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.date}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.offlineTime}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.startTime}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.endTime}</TableCell>
+          <TableCell className="px-4 max-w-[180px] truncate text-[#121212]">{row.reason}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.approverName}</TableCell>
+          <TableCell className="px-4"><StatusBadge status={row.status} /></TableCell>
+          <TableCell className="px-4">
+            <div className="flex items-center gap-1 justify-center">
+              <Button size="sm" onClick={() => onView(row)} className="rounded-md bg-[#1A61DB] hover:bg-[#1A61DB]/90 text-[10px] font-semibold px-3 h-7 shadow-sm">
+                View <Eye className="w-3 h-3 ml-1" />
+              </Button>
+              {row.status === 0 && (
+                <Button size="sm" variant="ghost" onClick={() => onDelete(row)} className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+);
+};
+
+const AttendanceTable = ({ rows, tableLoading, onView }) => {
+  const { t } = useTranslation();
+  return (
+  <Table className="min-w-[1100px] w-full">
+    <TableHeader>
+      <TableRow className="bg-[#E9E9E9] h-12">
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.fullName")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.task")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.date")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.startTime")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.endTime")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.reason")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.approver")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-slate-700">{t("timeclaim.status")}</TableHead>
+        <TableHead className="text-xs px-4 font-semibold text-white bg-[#7B9CDA] text-center">{t("action")}</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody className="bg-[#F9F9F9]">
+      {tableLoading ? (
+        <TableRow><TableCell colSpan={9} className="text-center py-10"><Spinner /></TableCell></TableRow>
+      ) : rows.length === 0 ? (
+        <TableRow><TableCell colSpan={9} className="text-center text-sm text-gray-400 py-10">{t("Nodata")}</TableCell></TableRow>
+      ) : rows.map((row, idx) => (
+        <TableRow key={row._id} className="h-12 text-xs text-slate-600">
+          <TableCell className="px-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-full ${avatarColors[idx % avatarColors.length]} flex items-center justify-center text-[10px] font-semibold text-white shrink-0`}>{getInitials(row.name)}</div>
+              <span className="truncate text-[#121212]">{row.name}</span>
+            </div>
+          </TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.taskName}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.date}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.startTime}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.endTime}</TableCell>
+          <TableCell className="px-4 max-w-[180px] truncate text-[#121212]">{row.reason}</TableCell>
+          <TableCell className="px-4 text-[#121212]">{row.approverName}</TableCell>
+          <TableCell className="px-4"><StatusBadge status={row.status} /></TableCell>
+          <TableCell className="px-4">
+            <div className="flex justify-center">
+              <Button size="sm" onClick={() => onView(row)} disabled={row.status !== 0} className="rounded-md bg-[#1A61DB] hover:bg-[#1A61DB]/90 text-[10px] font-semibold px-3 h-7 shadow-sm disabled:opacity-50">
+                View <Eye className="w-3 h-3 ml-1" />
+              </Button>
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+);
+};
+
+// ─── Create Request Modal ────────────────────────────────────────────────────
+
+const CreateRequestModal = ({ open, onClose, requestType, onSuccess, isEmployee = false }) => {
+  const { t } = useTranslation();
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [reason, setReason] = useState("");
+  const [reasons, setReasons] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [selectedApps, setSelectedApps] = useState([]);
+  const [offlineSlots, setOfflineSlots] = useState([]);
+  const [selectedSlots, setSelectedSlots] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [error, setError] = useState("");
+  // `null` = never fetched, string = empty-state message after a fetch completed.
+  const [lookupMessage, setLookupMessage] = useState(null);
+  // Admin-side only: target employee for manager-initiated attendance create.
+  const [employees, setEmployees] = useState([]);
+  const [employeeId, setEmployeeId] = useState("");
+
+  const isIdle = requestType === REQUEST_TYPES.IDLE;
+  const isOffline = requestType === REQUEST_TYPES.OFFLINE;
+  const isAttendance = requestType === REQUEST_TYPES.ATTENDANCE;
+  // Admins creating an attendance request use the manager endpoint, which requires employee_ids.
+  const needsEmployeePicker = !isEmployee && isAttendance;
+
+  useEffect(() => {
+    if (!open) return;
+    setDate(""); setStartTime(""); setEndTime(""); setReason("");
+    setActivities([]); setSelectedApps([]); setOfflineSlots([]); setSelectedSlots([]);
+    setError("");
+    setLookupMessage(null);
+    setEmployeeId("");
+    fetchReasons(requestType).then((list) => setReasons(Array.isArray(list) ? list : []));
+    if (needsEmployeePicker) {
+      fetchEmployeeList({ status: 1 }).then((list) => setEmployees(Array.isArray(list) ? list : []));
+    } else {
+      setEmployees([]);
+    }
+  }, [open, requestType, needsEmployeePicker]);
+
+  const handleGetActivities = async () => {
+    if (!date || !startTime || !endTime) { setError("Date, start time and end time are required"); return; }
+    setLoadingActivities(true); setError(""); setLookupMessage(null);
+    const res = await fetchIdleAppWebData({ date, startTime: `${date}T${startTime}`, endTime: `${date}T${endTime}` });
+    const list = res?.code === 200 ? (res.data || []) : [];
+    setActivities(list);
+    setSelectedApps([]);
+    setLoadingActivities(false);
+    if (res?.code === 200) {
+      setLookupMessage(list.length === 0 ? "No idle activity found for this time range." : "");
+    } else {
+      setLookupMessage(res?.message || res?.error || "No idle activity found for this time range.");
+    }
+  };
+
+  const handleGetOfflineSlots = async () => {
+    if (!date) { setError("Please select a date"); return; }
+    setLoadingActivities(true); setError(""); setLookupMessage(null);
+    const res = await fetchTotalOfflineTime(date);
+    const slots = res?.code === 200 ? (res.data?.offlineEntities || res.data || []) : [];
+    setOfflineSlots(Array.isArray(slots) ? slots : []);
+    setSelectedSlots([]);
+    setLoadingActivities(false);
+    if (res?.code === 200) {
+      setLookupMessage(slots.length === 0 ? "No offline periods available for this date." : "");
+    } else {
+      setLookupMessage(res?.message || res?.error || "No offline periods available for this date.");
+    }
+  };
+
+  const toggleApp = (id) => setSelectedApps((prev) => prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]);
+  const toggleSlot = (idx) => setSelectedSlots((prev) => prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]);
+
+  const formatSec = (s) => {
+    const n = Number(s) || 0;
+    const h = Math.floor(n / 3600); const m = Math.floor((n % 3600) / 60); const sec = n % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  };
+
+  const handleSubmit = async () => {
+    const reasonText = (reason || "").trim();
+    if (!reasonText) { setError(t("timeclaim.reasonRequired") || "Reason is required"); return; }
+    setSaving(true); setError("");
+
+    let res;
+    if (isIdle) {
+      if (!date || !startTime || !endTime) { setError("Date and time range are required"); setSaving(false); return; }
+      if (!selectedApps.length) { setError("Select at least one activity"); setSaving(false); return; }
+      // attendance_id rides on every activity returned by /settings/activity — grab it from the first.
+      const attendanceId = activities.find((a) => a.attendance_id != null)?.attendance_id;
+      if (!attendanceId) { setError("Could not resolve attendance for the selected range."); setSaving(false); return; }
+      res = await createIdleRequest({
+        date,
+        start_time: `${date}T${startTime}`,
+        end_time: `${date}T${endTime}`,
+        reason: reasonText,
+        activity_ids: selectedApps.map(String),
+        attendance_id: Number(attendanceId),
+      });
+    } else if (isOffline) {
+      const selected = selectedSlots.map((idx) => offlineSlots[idx]).filter(Boolean);
+      if (!selected.length) { setError("Select at least one offline period"); setSaving(false); return; }
+      res = await createOfflineRequest(selected.map((s) => ({
+        date,
+        start_time: s.from || s.start_time,
+        end_time: s.to || s.end_time,
+        reason: reasonText,
+        offline_time: Number(s.offlineTime || s.offline_time || 0),
+      })));
+    } else if (isAttendance) {
+      if (!date || !startTime || !endTime) { setError("Date and time range are required"); setSaving(false); return; }
+      if (needsEmployeePicker) {
+        if (!employeeId) { setError("Please select an employee"); setSaving(false); return; }
+        res = await createAttendanceRequestByManager({
+          date,
+          start_time: `${date}T${startTime}`,
+          end_time: `${date}T${endTime}`,
+          reason: reasonText,
+          employee_ids: [Number(employeeId)],
+        });
+      } else {
+        res = await createAttendanceRequest({
+          date,
+          start_time: `${date}T${startTime}`,
+          end_time: `${date}T${endTime}`,
+          reason: reasonText,
+        });
+      }
+    }
+
+    setSaving(false);
+    // Manager-endpoint partial-success: 200 with { successResponse, errorResponse }.
+    if (needsEmployeePicker && res?.code === 200 && Array.isArray(res.data?.errorResponse)) {
+      const { successResponse = [], errorResponse = [] } = res.data;
+      if (errorResponse.length > 0 && successResponse.length === 0) {
+        setError(errorResponse[0]?.message || "Failed to create request");
+        return;
+      }
+      if (errorResponse.length > 0) {
+        setError(`Created ${successResponse.length}; ${errorResponse.length} failed: ${errorResponse[0]?.message || ""}`);
+      }
+      onSuccess?.();
+      onClose(false);
+      return;
+    }
+    if (res?.code === 200) {
+      onSuccess?.();
+      onClose(false);
+    } else {
+      setError(res?.message || res?.msg || res?.error || "Failed to create request");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create {isIdle ? "Idle" : isOffline ? "Offline" : isAttendance ? "Attendance" : "Break"} {t("timeclaim.claim")}</DialogTitle>
+        </DialogHeader>
+
+        {error && <p className="text-red-500 text-xs bg-red-50 p-2 rounded">{error}</p>}
+
+        <div className="space-y-4">
+          {/* Employee picker — admin-initiated attendance create only */}
+          {needsEmployeePicker && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t("employee")}</label>
+              <select
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                className="w-full h-9 px-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400"
+              >
+                <option value="">
+                  {employees.length === 0 ? (t("loadingText") || "Loading…") : "Select an employee"}
+                </option>
+                {employees.map((emp) => {
+                  const id = emp.id ?? emp.user_id ?? emp.employee_id;
+                  const name = emp.full_name || emp.name || [emp.first_name, emp.last_name].filter(Boolean).join(" ") || `#${id}`;
+                  return <option key={id} value={id}>{name}{emp.emp_code ? ` (${emp.emp_code})` : ""}</option>;
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Date */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t("timeclaim.date")}</label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} max={new Date().toISOString().split("T")[0]} className="text-sm" />
+          </div>
+
+          {/* Time range (idle / attendance) */}
+          {(isIdle || isAttendance) && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t("timeclaim.startTime")}</label>
+                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t("timeclaim.endTime")}</label>
+                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="text-sm" />
+              </div>
+            </div>
+          )}
+
+          {/* Idle: Get Activities */}
+          {isIdle && (
+            <div>
+              <Button size="sm" variant="outline" onClick={handleGetActivities} disabled={loadingActivities} className="text-xs mb-2">
+                {loadingActivities ? t("loadingText") : t("timeclaim.getActivityList")}
+              </Button>
+              {!loadingActivities && activities.length === 0 && lookupMessage && (
+                <p className="text-[12px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                  {lookupMessage}
+                </p>
+              )}
+              {activities.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border rounded text-xs">
+                  <table className="w-full">
+                    <thead className="bg-slate-100 sticky top-0">
+                      <tr>
+                        <th className="px-2 py-1 text-left w-8"><input type="checkbox" onChange={(e) => setSelectedApps(e.target.checked ? activities.map((a) => a._id || a.activity_id) : [])} checked={selectedApps.length === activities.length && activities.length > 0} className="accent-blue-500" /></th>
+                        <th className="px-2 py-1 text-left">{t("timeclaim.appUrl")}</th>
+                        <th className="px-2 py-1 text-left">{t("timeclaim.ranking")}</th>
+                        <th className="px-2 py-1 text-left">{t("timeclaim.idleTime")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activities.map((act) => {
+                        const id = act._id || act.activity_id;
+                        return (
+                          <tr key={id} className="border-t">
+                            <td className="px-2 py-1"><input type="checkbox" checked={selectedApps.includes(id)} onChange={() => toggleApp(id)} className="accent-blue-500" /></td>
+                            <td className="px-2 py-1 truncate max-w-[180px]">{act.url || "-"}</td>
+                            <td className="px-2 py-1">{act.prodRanking || "-"}</td>
+                            <td className="px-2 py-1">{formatSec(act.idleTime)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Offline: Get Slots */}
+          {isOffline && (
+            <div>
+              <Button size="sm" variant="outline" onClick={handleGetOfflineSlots} disabled={loadingActivities || !date} className="text-xs mb-2">
+                {loadingActivities ? t("loadingText") : t("timeclaim.getOfflinePeriods")}
+              </Button>
+              {!loadingActivities && offlineSlots.length === 0 && lookupMessage && (
+                <p className="text-[12px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                  {lookupMessage}
+                </p>
+              )}
+              {offlineSlots.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border rounded text-xs">
+                  <table className="w-full">
+                    <thead className="bg-slate-100 sticky top-0">
+                      <tr>
+                        <th className="px-2 py-1 w-8"><input type="checkbox" onChange={(e) => setSelectedSlots(e.target.checked ? offlineSlots.map((_, i) => i) : [])} checked={selectedSlots.length === offlineSlots.length && offlineSlots.length > 0} className="accent-blue-500" /></th>
+                        <th className="px-2 py-1 text-left">{t("timeclaim.start")}</th>
+                        <th className="px-2 py-1 text-left">{t("timeclaim.end")}</th>
+                        <th className="px-2 py-1 text-left">{t("timeclaim.duration")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {offlineSlots.map((slot, idx) => (
+                        <tr key={idx} className="border-t">
+                          <td className="px-2 py-1"><input type="checkbox" checked={selectedSlots.includes(idx)} onChange={() => toggleSlot(idx)} className="accent-blue-500" /></td>
+                          <td className="px-2 py-1">{new Date(slot.from || slot.start_time).toLocaleTimeString()}</td>
+                          <td className="px-2 py-1">{new Date(slot.to || slot.end_time).toLocaleTimeString()}</td>
+                          <td className="px-2 py-1">{formatSec(slot.offlineTime || slot.offline_time)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Reason */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t("timeclaim.reason")}</label>
+            {reasons.length > 0 ? (
+              <select
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full h-9 px-3 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400"
+              >
+                <option value="">{t("timeclaim.selectReason")}</option>
+                {reasons.map((r) => (
+                  <option key={r._id || r.reason_value} value={r.reason_name || r.reason_value}>{r.reason_name}</option>
+                ))}
+                <option value="__other">{t("timeclaim.other")}</option>
+              </select>
+            ) : null}
+            {(reasons.length === 0 || reason === "__other") && (
+              <Input
+                placeholder={t("timeclaim.enterReason")}
+                value={reason === "__other" ? "" : reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="mt-1 text-sm"
+              />
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 mt-2">
+          <Button variant="outline" onClick={() => onClose(false)} className="text-xs">Cancel</Button>
+          <Button onClick={handleSubmit} disabled={saving} className="bg-blue-500 hover:bg-blue-600 text-xs">
+            {saving ? t("timeclaim.submitting") : t("timeclaim.submitRequest")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const Spinner = () => (
+  <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+    Loading...
+  </div>
+);
+
+// ─── Main Component ─────────────────────────────────────────────────────────
+
+const EmpTimeclaim = ({ isEmployee = false, isAdmin = false }) => {
+  const { t } = useTranslation();
+  const REQUEST_TYPE_OPTIONS = getRequestTypeOptions(t);
+  const STATUS_OPTIONS = getStatusOptions(t);
+  const store = useTimeClaimStore();
+  const {
+    rows, totalDocs, filters, loading, tableLoading, autoApprove, selectedIds,
+    setFilters, loadInitialData, fetchData, switchRequestType,
+    toggleSelect, toggleSelectAll, bulkAction,
+    approveRequest, declineRequest, deleteRequest,
+    approveOffline, declineOffline, approveBreak, declineBreak,
+  } = store;
+
+  const [search, setSearch] = useState("");
+  const [viewRow, setViewRow] = useState(null);
+  const [deleteRow, setDeleteRow] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (type, msg) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 3000);
+  };
+  const debounceRef = useRef(null);
+  const initialLoad = useRef(true);
+
+  // Date range picker (shared calendar UI)
+  const handleDateRangeChange = (startDate, endDate) => {
+    if (!startDate || !endDate) return;
+    setFilters({ startDate, endDate, skip: 0, page: 1 });
+  };
+
+  // Initial load
+  useEffect(() => { loadInitialData(); }, []);
+
+  // Debounce search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setFilters({ searchText: search, skip: 0, page: 1 });
+    }, 400);
+    return () => clearTimeout(debounceRef.current);
+  }, [search]);
+
+  // Re-fetch on filter change
+  useEffect(() => {
+    if (initialLoad.current) { initialLoad.current = false; return; }
+    fetchData();
+  }, [
+    filters.startDate, filters.endDate, filters.status, filters.requestType,
+    filters.searchText, filters.skip, filters.limit, filters.sortName, filters.sortOrder,
+  ]);
+
+  // Computed
+  const totalPages = Math.max(1, Math.ceil(totalDocs / filters.limit));
+  const currentPage = filters.page;
+  const isAttendance = filters.requestType === REQUEST_TYPES.ATTENDANCE;
+
+  // Handlers
+  const handleRequestType = (value) => switchRequestType(value);
+
+  const handlePageSizeChange = useCallback((v) => {
+    const num = parseInt(v, 10);
+    setFilters({ limit: Number.isNaN(num) ? 10 : num, skip: 0, page: 1 });
+  }, [setFilters]);
+
+  const handlePageChange = useCallback((p) => {
+    setFilters({ page: p, skip: (p - 1) * filters.limit });
+  }, [setFilters, filters.limit]);
+
+  const handleView = (row) => setViewRow(row);
+
+  const handleApprove = async (row) => {
+    if (filters.requestType === REQUEST_TYPES.IDLE) await approveRequest(row._id);
+    else if (filters.requestType === REQUEST_TYPES.OFFLINE) await approveOffline(row._id, row.employeeId, row.offlineTimeRaw, row.date);
+    else if (filters.requestType === REQUEST_TYPES.BREAK) await approveBreak(row._id);
+    else await approveRequest(row._id);
+    setViewRow(null);
+  };
+
+  const handleDecline = async (row) => {
+    if (filters.requestType === REQUEST_TYPES.IDLE) await declineRequest(row._id);
+    else if (filters.requestType === REQUEST_TYPES.OFFLINE) await declineOffline(row._id, row.employeeId, row.offlineTimeRaw, row.date);
+    else if (filters.requestType === REQUEST_TYPES.BREAK) await declineBreak(row._id);
+    else await declineRequest(row._id);
+    setViewRow(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteRow) return;
+    const forBreak = filters.requestType === REQUEST_TYPES.BREAK ? "ForBreak" : "";
+    await deleteRequest(deleteRow._id, forBreak);
+    setDeleteRow(null);
+  };
+
+  const handleAutoApproveToggle = async () => {
+    const prev = autoApprove;
+    const result = await store.toggleAutoApprove();
+    if (result?.code === 200 && !result?.error) {
+      showToast("success", t(prev ? "timeclaim.autoApproveOff" : "timeclaim.autoApproveOn"));
+    } else {
+      showToast("error", result?.error || result?.message || result?.msg || t("timeclaim.autoApproveFailed"));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-slate-50">
+        <div className="w-20 h-20 flex items-center justify-center">
+          <video src="/src/assets/ai.webm" autoPlay loop playsInline muted className="w-full h-full object-contain" />
+        </div>
+      </div>
+    );
+  }
+
+  const tableProps = {
+    rows, tableLoading, selectedIds,
+    onView: handleView,
+    onDelete: (row) => setDeleteRow(row),
+    toggleSelect,
+    toggleSelectAll,
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-9 w-full">
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg text-[13px] font-medium text-white ${toast.type === "success" ? "bg-green-500" : "bg-red-500"}`}>
+          {toast.msg}
+        </div>
+      )}
+      {/* Header */}
+      <div className="flex relative items-start justify-between gap-4 mb-8">
+        <div className="border-l-2 border-blue-500 pl-4">
+          <h2 className="text-gray-800" style={{ fontSize: "21px", lineHeight: "18px" }}>
+            <span className="font-semibold">{t("timeclaim.title")}</span>{" "}
+            <span className="font-normal text-gray-500">{t("timeclaim.claim")}</span>
+          </h2>
+          <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+            {t("timeclaim.description")}
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          {/* Create Request is for employees/managers to raise claims — admins
+              only review & approve, so it's hidden on the admin page. */}
+          {!isAdmin && filters.requestType !== REQUEST_TYPES.BREAK && (
+            <Button
+              size="lg"
+              className="rounded-xl bg-blue-500 hover:bg-blue-600 px-5 text-xs font-semibold shadow-sm"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-1" /> {t("timeclaim.createRequest")}
+            </Button>
+          )}
+          <div className="hidden lg:flex items-end gap-1">
+            <img alt="timeclaim" className="w-24" src={EmpTimeclaimLogo} />
+          </div>
+        </div>
+      </div>
+
+      {/* Filters Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto] gap-x-6 gap-y-4 mb-7 items-start">
+        {/* Date Range */}
+        <div>
+          <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-1.5">
+            {t("timeclaim.selectDateRanges")} :
+            <Info className="w-3.5 h-3.5 text-blue-500" />
+          </label>
+            <DateRangeCalendar
+              startDate={filters.startDate}
+              endDate={filters.endDate}
+              onChange={handleDateRangeChange}
+            />
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">{t("timeclaim.status")}</label>
+          <CustomSelect
+            placeholder="All"
+            items={STATUS_OPTIONS}
+            selected={filters.status}
+            onChange={(v) => setFilters({ status: v, skip: 0, page: 1 })}
+            width="full"
+          />
+        </div>
+
+        {/* Request Type */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">{t("timeclaim.requestType")}</label>
+          <div className="flex items-center gap-2 flex-nowrap">
+            {REQUEST_TYPE_OPTIONS.map(({ key, value }) => (
+              <button
+                key={key}
+                onClick={() => handleRequestType(value)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-full border text-xs whitespace-nowrap cursor-pointer transition-colors ${
+                  filters.requestType === value
+                    ? "border-blue-500 bg-blue-50 text-blue-600"
+                    : "border-gray-200 bg-white text-slate-500"
+                }`}
+              >
+                <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  filters.requestType === value ? "border-blue-500" : "border-gray-300"
+                }`}>
+                  {filters.requestType === value && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                </span>
+                {key}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Auto Approve (admin/manager only) */}
+        {!isEmployee && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">{t("timeclaim.autoApprove")}</label>
+            <div className="flex items-center gap-2 h-10">
+              <button
+                onClick={handleAutoApproveToggle}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${autoApprove ? "bg-blue-500" : "bg-gray-300"}`}
+              >
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${autoApprove ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+              <span className="text-sm text-slate-600">{autoApprove ? t("on") : t("off")}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Action Buttons (admin/manager only) */}
+      {!isEmployee && selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-7">
+          <Button size="lg" onClick={() => bulkAction(1)} className="rounded-md bg-green-600 hover:bg-green-700 px-5 text-xs font-semibold shadow-sm">
+            <CheckCircle className="w-4 h-4 mr-1" /> {t("timeclaim.approveSelected")} ({selectedIds.length})
+          </Button>
+          <Button size="lg" onClick={() => bulkAction(2)} className="rounded-md bg-red-500 hover:bg-red-600 px-5 text-xs font-semibold shadow-sm">
+            <XCircle className="w-4 h-4 mr-1" /> {t("timeclaim.declineSelected")} ({selectedIds.length})
+          </Button>
+        </div>
+      )}
+
+      {/* Show entries + Search */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-7">
+        <div className="flex items-center gap-3">
+          <ShowEntries value={filters.limit} onChange={handlePageSizeChange} />
+        </div>
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Input
+            placeholder={t("search")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-10 rounded-full bg-slate-50 border-slate-200 text-xs"
+          />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-2xl border border-slate-100 overflow-x-auto bg-slate-50">
+        {filters.requestType === REQUEST_TYPES.IDLE && <IdleTable {...tableProps} />}
+        {filters.requestType === REQUEST_TYPES.OFFLINE && <OfflineTable {...tableProps} />}
+        {filters.requestType === REQUEST_TYPES.BREAK && <BreakTable {...tableProps} />}
+        {filters.requestType === REQUEST_TYPES.ATTENDANCE && <AttendanceTable rows={rows} tableLoading={tableLoading} onView={handleView} />}
+      </div>
+
+      {/* Pagination */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 py-3.5">
+        <p className="text-[13px] text-gray-500 font-medium">
+          {t("timeclaim.showing")}{" "}
+          <span className="font-bold">{totalDocs === 0 ? 0 : (currentPage - 1) * filters.limit + 1}</span>{" "}
+          {t("to")} <span className="font-bold">{Math.min(currentPage * filters.limit, totalDocs)}</span>{" "}
+          {t("of")} <span className="font-bold">{totalDocs}</span>
+        </p>
+        <PaginationComponent currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
+      </div>
+
+      {/* Modals */}
+      <ViewRequestModal
+        open={!!viewRow}
+        onClose={() => setViewRow(null)}
+        row={viewRow}
+        onApprove={handleApprove}
+        onDecline={handleDecline}
+        requestType={filters.requestType}
+        isEmployee={isEmployee}
+      />
+      <DeleteModal
+        open={!!deleteRow}
+        onClose={() => setDeleteRow(null)}
+        onConfirm={handleDeleteConfirm}
+      />
+      <CreateRequestModal
+        open={createOpen}
+        onClose={setCreateOpen}
+        requestType={filters.requestType}
+        onSuccess={fetchData}
+        isEmployee={isEmployee}
+      />
+    </div>
+  );
+};
+
+export default EmpTimeclaim;

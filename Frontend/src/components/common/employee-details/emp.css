@@ -1,0 +1,14 @@
+.emp-card { background: white; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 4px 24px rgba(32,121,253,0.06); }
+.tab-active   { background: linear-gradient(135deg,#e8f3ff,#dbeafe); border: 1.5px solid #93c5fd; color: #1d4ed8; }
+.tab-inactive { background: white; border: 1.5px solid #e5e7eb; color: #6b7280; }
+.tab-deleted  { background: white; border: 1.5px solid #fca5a5; color: #dc2626; }
+.action-icon  { width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s; }
+.action-icon:hover { transform: scale(1.12); }
+.emp-th { background: linear-gradient(135deg,#eff6ff,#e0f2fe); font-weight:600; font-size:12px; border-radius:10px; color:#374151; white-space:nowrap; }
+.tr-hover:hover td { background: #f8fbff; }
+.tbl-scroll { overflow-x: auto; }
+.tbl-scroll::-webkit-scrollbar { height: 4px; }
+.tbl-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+.tbl-scroll::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 4px; }
+.gradient-btn { background: linear-gradient(135deg,#3b82f6 0%,#2563eb 100%); transition: all .2s; }
+.gradient-btn:hover { box-shadow: 0 4px 16px rgba(37,99,235,0.35); transform: translateY(-1px); }

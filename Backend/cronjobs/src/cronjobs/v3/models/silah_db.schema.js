@@ -1,0 +1,75 @@
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
+
+// Silah Schema for Project
+const ProjectSchema = new Schema({
+    organization_id: { type: Number, required: true },
+    title: { type: String, required: true },
+    start_date: { type: String, required: true },
+    end_date: { type: String, required: true },
+    description: { type: String, required: true },
+    created_by: { type: Number, default: null },
+    is_deleted: { type: Boolean, default: false },
+    assigned_users: [{type: Number}],
+    assigned_non_admin_users: [{type: Number}]
+}, { timestamps: true });
+
+ProjectSchema.index({ organization_id: 1 });
+ProjectSchema.index({ organization_id: 1, title: 1 });
+
+const ProjectSchemaModel = mongoose.model('project', ProjectSchema);
+
+
+
+
+// Silah Schema for Folder
+const FolderSchema = new Schema({
+    organization_id: { type: Number, required: true },
+    name: { type: String, required: true },
+    project_id: { type: mongoose.Types.ObjectId, ref: 'project', index: true, required: true },
+    created_by: { type: Number, default: null },
+    is_deleted: { type: Boolean, default: false },
+}, { timestamps: true });
+
+FolderSchema.index({ organization_id: 1 });
+FolderSchema.index({ organization_id: 1, name: 1 });
+FolderSchema.index({ organization_id: 1, project_id: 1 });
+
+const FolderSchemaModel = mongoose.model('folder', FolderSchema);
+
+
+// Silah Schema for Folder
+const TaskSchema = new Schema({
+    organization_id: { type: Number, required: true },
+    name: { type: String, required: true },
+    project_id: { type: mongoose.Types.ObjectId, ref: 'project', index: true, required: true },
+    folder_id: { type: mongoose.Types.ObjectId, ref: 'folder', index: true, required: true },
+    assigned_user: { type: Number, default: null },
+    status: { type: Number, default: 0 },    // 0 - Not Started, 1 - Started, 2 - Stop/Paused, 3 - Finished
+    is_deleted: { type: Boolean, default: false },
+    total_working_time: { type: Number, default: false},
+    task_working_status: [{
+        start_time: { type: Date,  },
+        end_time: { type: Date,  },
+        productivity_report_id: { type: mongoose.Types.ObjectId },
+        productivity_report_second_id: { type: mongoose.Types.ObjectId },
+    }],
+    task_finished_time: { type: Date, default: null },
+    task_remaining_time: { type: Date, default: null },
+}, { timestamps: true });
+
+TaskSchema.index({ organization_id: 1 });
+TaskSchema.index({ organization_id: 1, name: 1 });
+TaskSchema.index({ organization_id: 1, assigned_user: 1 });
+// TaskSchema.index({ organization_id: 1, assigned_user: 1, 'task_working_status.start_time': 1, 'task_working_status.end_time': 1 });
+TaskSchema.index({ organization_id: 1, assigned_user: 1, 'task_working_status': 1 });
+
+const TaskSchemaModel = mongoose.model('task', TaskSchema);
+
+
+
+module.exports = {
+    ProjectSchemaModel,
+    FolderSchemaModel,
+    TaskSchemaModel
+};

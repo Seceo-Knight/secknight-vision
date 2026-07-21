@@ -1,0 +1,110 @@
+{
+    "system": {
+        "type": "0",
+        "visibility": "false",
+        "autoUpdate": "0"
+    },
+    "screenshot": {
+        "frequencyPerHour": "60",
+        "employeeAccessibility": "false",
+        "employeeCanDelete": "false"
+    },
+    "features": {
+        "application_usage": "1",
+        "keystrokes": "1",
+        "web_usage": "1",
+        "block_websites": "1",
+        "screenshots": "0",
+        "screen_record": "0"
+    },
+    "screenRecord": {
+        "ultrafast_1280_21": "0",
+        "ultrafast_1080_21": "0",
+        "ultrafast_720_21": "0"
+    },
+    "pack": {
+        "id": "1",
+        "expiry": "2023-01-26T18:30:00.000Z"
+    },
+    "breakInMinute": "30",
+    "idleInMinute": "10",
+    "timesheetIdleTime": "00:00",
+    "trackingMode": "unlimited",
+    "tracking": {
+        "unlimited": {
+            "day": "1,2,3,4,5,6"
+        },
+        "fixed": {
+            "mon": {
+                "status": false,
+                "time": {
+                    "start": "09:00",
+                    "end": "18:00"
+                }
+            },
+            "tue": {
+                "status": false,
+                "time": {
+                    "start": "09:00",
+                    "end": "18:00"
+                }
+            },
+            "wed": {
+                "status": false,
+                "time": {
+                    "start": "09:00",
+                    "end": "18:00"
+                }
+            },
+            "thu": {
+                "status": false,
+                "time": {
+                    "start": "09:00",
+                    "end": "18:00"
+                }
+            },
+            "fri": {
+                "status": false,
+                "time": {
+                    "start": "09:00",
+                    "end": "18:00"
+                }
+            },
+            "sat": {
+                "status": false,
+                "time": {
+                    "start": "09:00",
+                    "end": "15:00"
+                }
+            },
+            "sun": {
+                "status": false,
+                "time": {
+                    "start": "09:00",
+                    "end": "18:00"
+                }
+            }
+        },
+        "networkBased": {
+            "networkName": null,
+            "networkMac": null
+        },
+        "manual": {},
+        "projectBased": {}
+    },
+    "task": {
+        "employeeCanCreateTask": "false"
+    },
+    "logoutOptions": {
+        "option": 2,
+        "specificTimeUTC": "23:59",
+        "specificTimeUser": "23:59",
+        "afterFixedHours": 8
+    },
+    "productiveHours": {
+        "hour": "08:00",
+        "mode": "unlimited"
+    },
+    "isSilahMobileGeoLocation": 0,
+    "silahMobileGeoLocationFrequency": 30
+}

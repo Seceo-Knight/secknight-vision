@@ -1,0 +1,11 @@
+const rateLimit = require('express-rate-limit');
+
+const APIRateLimiter = rateLimit({
+  windowMs: 59 * 60 * 1000, // 1 Hours in milliseconds
+  max: 1,
+  message: "You have reached maximum retries. Please try again after 1 Hours", 
+  statusCode: 429,
+  headers: true,
+});
+
+module.exports = { APIRateLimiter }

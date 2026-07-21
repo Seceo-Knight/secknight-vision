@@ -1,0 +1,1 @@
+ALTER TABLE employee_payroll ADD salary_hold MEDIUMTEXT NULL DEFAULT NULL AFTER details;

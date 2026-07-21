@@ -1,0 +1,248 @@
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { Search, Calendar, Play, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import CustomSelect from "@/components/common/elements/CustomSelect";
+import PaginationComponent from "@/components/common/Pagination";
+import { fetchScreenRecords } from "./service";
+import moment from "moment";
+
+const timeOptions = Array.from({ length: 24 }, (_, i) => {
+  const v = String(i).padStart(2, "0");
+  return { label: `${v}:00`, value: v };
+});
+
+// Pretty timestamp from a recording payload — falls back through the
+// known shape variants the API has returned over time.
+const recordingTime = (r) => {
+  if (r?.name) {
+    // name like "16-2026-05-11 16:01:42.mp4" → show "16:01:42"
+    const m = r.name.match(/(\d{2}:\d{2}:\d{2})/);
+    if (m) return m[1];
+  }
+  const raw = r?.created_at ?? r?.start_time ?? r?.time;
+  return raw ? moment(raw).format("HH:mm:ss") : "—";
+};
+
+function RecordingCard({ recording, onPlay }) {
+  const videoSrc =
+    recording.link ?? recording.video_url ?? recording.video_path ?? null;
+
+  return (
+    <div
+      className="bg-gray-900 rounded-xl overflow-hidden hover:ring-2 hover:ring-violet-400 transition-all cursor-pointer group"
+      onClick={() => videoSrc && onPlay?.(recording)}
+    >
+      <div className="aspect-[4/3] relative flex items-center justify-center">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        {videoSrc ? (
+          <video
+            src={videoSrc}
+            className="absolute inset-0 w-full h-full object-cover opacity-60"
+            muted
+            preload="metadata"
+            playsInline
+          />
+        ) : (
+          <div className="absolute inset-0 opacity-30 p-2 overflow-hidden">
+            <div className="text-[6px] text-green-400 font-mono leading-tight">
+              {Array.from({ length: 8 }, (_, i) => (
+                <div key={i}>{">"} npm run build --output...</div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="relative z-10 w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/30 transition-colors">
+          <Play size={20} className="text-white ml-0.5" fill="white" />
+        </div>
+      </div>
+      <div className="px-2.5 py-2 space-y-0.5">
+        <p className="text-[10px] text-gray-300 truncate">{recordingTime(recording)}</p>
+      </div>
+    </div>
+  );
+}
+
+// Normalize the API response into [{ range, recordings }] regardless of
+// the response shape (new: { screenRecords: [{ t, s }] }; legacy: array).
+const formatRange = (hour) => {
+  const h = Number(hour);
+  if (!Number.isFinite(h)) return String(hour);
+  const next = (h + 1) % 24;
+  return `${String(h).padStart(2, "0")}:00 - ${String(next).padStart(2, "0")}:00`;
+};
+
+function buildSlots(payload) {
+  // New shape: { screenRecords: [{ t, actual_t, s: [...] }] }
+  const groups = payload?.screenRecords;
+  if (Array.isArray(groups) && groups.length) {
+    return groups
+      .filter((g) => Array.isArray(g?.s) && g.s.length)
+      .map((g) => ({
+        range: formatRange(g.actual_t ?? g.t),
+        recordings: g.s,
+      }));
+  }
+  // Legacy: flat array of recordings.
+  if (Array.isArray(payload)) {
+    const map = {};
+    payload.forEach((r) => {
+      const raw = r.time ?? r.start_time ?? r.created_at ?? "";
+      const hour = raw ? String(raw).slice(11, 13) : "00";
+      if (!map[hour]) map[hour] = [];
+      map[hour].push(r);
+    });
+    return Object.entries(map).map(([hour, recordings]) => ({
+      range: formatRange(hour),
+      recordings,
+    }));
+  }
+  return [];
+}
+
+export default function ScreenRecordingTab({ employee }) {
+  const { t } = useTranslation();
+  const nowHour = new Date().getHours();
+  const nextHour = (nowHour + 1) % 24;
+  const [date, setDate]         = useState(moment().format("YYYY-MM-DD"));
+  const [fromTime, setFromTime] = useState(String(nowHour).padStart(2, "0"));
+  const [toTime, setToTime]     = useState(String(nextHour).padStart(2, "0"));
+  const [slots, setSlots]       = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading]   = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [playing, setPlaying]   = useState(null);
+
+  const load = async () => {
+    if (!employee?.id) return;
+    setLoading(true);
+    const res = await fetchScreenRecords(employee.id, date, fromTime, toTime);
+    if (res?.code === 200) {
+      const built = buildSlots(res.data);
+      setSlots(built);
+      setTotalCount(built.reduce((n, s) => n + (s.recordings?.length || 0), 0));
+    } else {
+      setSlots([]);
+      setTotalCount(0);
+    }
+    setCurrentPage(1);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee?.id]);
+
+  return (
+    <div className="space-y-5">
+      {/* Filters */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="space-y-1 w-full">
+          <label className="text-xs font-medium text-gray-600">{t("selectDate")}</label>
+          <div className="relative w-full">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              type="date"
+              value={date}
+              max={moment().format("YYYY-MM-DD")}
+              onChange={(e) => setDate(e.target.value)}
+              className="pl-9 h-10 w-full rounded-xl border-gray-200 text-sm"
+            />
+          </div>
+        </div>
+        <div className="space-y-1 w-full">
+          <label className="text-xs font-medium text-gray-600">{t("frmTime")}</label>
+          <CustomSelect placeholder={t("from")} items={timeOptions} selected={fromTime} onChange={setFromTime} width />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-600">{t("toTime")}</label>
+          <CustomSelect placeholder={t("to")} items={timeOptions} selected={toTime} onChange={setToTime} width />
+        </div>
+        <div className="flex items-end w-full">
+          <Button
+            onClick={load}
+            disabled={loading}
+            className="h-10 px-6 rounded-xl w-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold gap-2"
+          >
+            <Search size={14} />
+            {loading ? `${t("search")}…` : t("search")}
+          </Button>
+        </div>
+      </div>
+
+      {/* Slots */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <span className="text-sm text-gray-400">{t("loadingRecordings")}</span>
+        </div>
+      ) : slots.length === 0 ? (
+        <div className="flex items-center justify-center py-16">
+          <span className="text-sm text-gray-400 italic">{t("noRecordingsFound")}</span>
+        </div>
+      ) : slots.map((slot, i) => (
+        <div key={i} className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+            <span className="text-sm font-medium text-gray-700">{slot.range}</span>
+            <button className="ml-auto w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+              <ChevronRight size={14} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {slot.recordings.map((rec, ri) => (
+              <RecordingCard
+                key={rec.id ?? ri}
+                recording={rec}
+                onPlay={setPlaying}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* Full-screen player overlay */}
+      {playing && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-6"
+          onClick={() => setPlaying(null)}
+        >
+          <div
+            className="bg-gray-900 rounded-xl overflow-hidden w-full max-w-4xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
+              <span className="text-sm text-gray-300">{recordingTime(playing)}</span>
+              <button
+                type="button"
+                onClick={() => setPlaying(null)}
+                className="text-gray-400 hover:text-white text-sm cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+            <video
+              src={playing.link ?? playing.video_url ?? playing.video_path}
+              controls
+              autoPlay
+              className="w-full bg-black"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 py-2">
+        <p className="text-[13px] text-gray-500">
+          {t("total")} <span className="font-bold text-blue-600">{totalCount}</span> {t("totalRecordings")}
+        </p>
+        <PaginationComponent
+          currentPage={currentPage}
+          totalPages={Math.max(1, Math.ceil(totalCount / 10))}
+          onPageChange={setCurrentPage}
+        />
+      </div>
+    </div>
+  );
+}

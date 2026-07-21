@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD `geolocation` VARCHAR(250) DEFAULT null 

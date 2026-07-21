@@ -1,0 +1,21 @@
+node_modules
+dist
+.vscode
+.cursor
+.claude
+vendor
+.DS_Store
+.env
+.env.*
+.env.local
+.env.production
+*.pem
+*.key
+*.log
+*-audit.json
+audit.json
+.audit.json
+package-lock.json
+
+# stray temp artifacts from in-place file edits — safe to ignore
+.fuse_hidden*

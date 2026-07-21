@@ -1,0 +1,1 @@
+ALTER TABLE `organization_payroll_settings` ADD UNIQUE(`organization_id`);
