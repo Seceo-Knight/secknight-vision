@@ -36,6 +36,8 @@ async function bootstrap() {
         .addBearerAuth()
         .build(),
     ));
-    await app.listen(process.env.PORT);
+    const port = process.env.PORT || 3001;
+    await app.listen(port);
+    console.log(`store-logs-api listening on port ${port}`);
 }
 bootstrap();
