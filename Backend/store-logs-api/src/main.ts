@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import * as dotenv from 'dotenv';
+dotenv.config({ override: true });
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
@@ -16,7 +17,7 @@ async function bootstrap() {
     app.use(helmet(), compression());
     app.enableCors();
     // Timezone setting
-    moment.tz.setDefault(process.env.TIMEZONE);
+    moment.tz.setDefault(process.env.TIMEZONE || 'UTC');
 
     // body Parser
     app.use(json({ limit: '50mb' }));
