@@ -26,8 +26,8 @@ class AuthModel {
     getAdmin(email, amember_id) {
         const query = {
             sql: `
-        SELECT 
-            u.id, u.first_name, u.last_name, u.email, u.a_email, u.email_verified_at,u.contact_number, u.username,
+        SELECT
+            u.id, u.first_name, u.last_name, u.email, u.a_email, u.password, u.email_verified_at,u.contact_number, u.username,
             u.contact_number, u.date_join, u.address,u.photo_path, o.id as organization_id,os.rules,o.amember_id,
             o.total_allowed_user_count,o.current_user_count,o.language,o.weekday_start,o.timezone, o.product_tour_status, r.id AS reseller_id, o.is2FAEnable, o.mfa_config
         FROM ?? u 
@@ -60,18 +60,18 @@ class AuthModel {
         return mySql.query(query);
     }
 
-    insertAdminDetails(first_name, last_name, email, contact_number, date_join, address) {
+    insertAdminDetails(first_name, last_name, email, contact_number, date_join, address, encryptedPassword = null) {
         const query = `
-            INSERT INTO ${this.userTable} 
-                (first_name,last_name,email,contact_number,date_join,address,a_email)
-            VALUES ('${first_name}','${last_name}', '${email}', ${contact_number ? "'" + contact_number + "'" : null},'${date_join}',${address ? "'" + address + "'" : null},'${email}');
+            INSERT INTO ${this.userTable}
+                (first_name,last_name,email,contact_number,date_join,address,a_email,password)
+            VALUES ('${first_name}','${last_name}', '${email}', ${contact_number ? "'" + contact_number + "'" : null},'${date_join}',${address ? "'" + address + "'" : null},'${email}', ?);
         `;
 
         if (process.env.MYSQL_TIMEOUT === 'true') {
-            return mySql.query({ sql: query, timeout: parseInt(process.env.MYSQL_TIMEOUT_INTERVAL) });
+            return mySql.query({ sql: query, timeout: parseInt(process.env.MYSQL_TIMEOUT_INTERVAL) }, [encryptedPassword]);
         }
 
-        return mySql.query(query);
+        return mySql.query(query, [encryptedPassword]);
     }
 
     insertOrganizationSetting(organization_id, rules) {

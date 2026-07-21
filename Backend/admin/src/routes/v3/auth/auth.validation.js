@@ -18,7 +18,12 @@ class AuthValidator {
   validateAdminAuthParams() {
     return Joi.object()
       .keys({
-        name: Joi.string().required().trim(),
+        // name/product_id/begin_date/expire_date/timezone were required here for the
+        // original EmpCloud-licensing SSO flow (which supplied all of these itself).
+        // For standalone on-prem email+password login, only email/password come from
+        // the client — everything else is optional and defaulted server-side in
+        // AuthService.adminAuth().
+        name: Joi.string().trim().optional(),
         first_name: Joi.string()
           .trim()
           .max(64)
@@ -41,6 +46,7 @@ class AuthValidator {
           .error(err => {
             return Common.hapijoiStringErrorMessage(err);
           }),
+        password: Joi.string().required().min(6).max(128).trim(),
         username: Joi.string()
           .trim()
           .max(50)
@@ -50,10 +56,10 @@ class AuthValidator {
           }),
         address: Joi.string().allow('').trim().max(512),
         phone: Joi.string().allow('').trim(),
-        product_id: Joi.number().required(),
-        begin_date: Joi.date().required(),
-        expire_date: Joi.date().required(),
-        timezone: Joi.string().required(),
+        product_id: Joi.number().optional(),
+        begin_date: Joi.date().optional(),
+        expire_date: Joi.date().optional(),
+        timezone: Joi.string().optional(),
         amember_id: Joi.number().positive().default(null).allow(null).optional(),
         total_allowed_user_count: Joi.number().positive().optional(),
         region: Joi.number().optional().default(1).allow(1, 2),

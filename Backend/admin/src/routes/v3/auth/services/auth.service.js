@@ -355,16 +355,40 @@ class AuthService {
       } catch (errors) {
         return res.json({code: 400, data: null, message: errors.message, error: null});
       }
-      let {name, first_name, last_name, email, region, username, address, phone, product_id, begin_date, expire_date, timezone, amember_id, total_allowed_user_count, is_on_prem, is_blocked} = validate;
+      let {name, first_name, last_name, email, password, region, username, address, phone, product_id, begin_date, expire_date, timezone, amember_id, total_allowed_user_count, is_on_prem, is_blocked} = validate;
+
+      // These fields are supplied by the external EmpCloud licensing/SSO flow when
+      // present. For standalone on-prem email+password login they aren't sent by the
+      // client at all, so fall back to sane defaults here.
+      timezone = timezone || 'Asia/Kolkata';
+      first_name = first_name || (name ? name.split(' ')[0] : email.split('@')[0]);
+      last_name = last_name || (name ? name.split(' ').slice(1).join(' ') : '');
+      name = name || `${first_name} ${last_name}`.trim();
+      product_id = product_id || parseInt(process.env.FREE_PLAN_ID) || 13;
+      begin_date = begin_date || new Date();
+      expire_date = expire_date || new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000); // +10 years
 
       begin_date = moment(begin_date).format('YYYY-MM-DD');
       let expire_time = moment(expire_date).format('YYYY-MM-DD');
       let now = moment().format('YYYY-MM-DD');
-      
+
 
       if(is_blocked == "true") return res.status(400).json({ code : 400, message: "You have been blocked from SecKnight Vision. Please contact support for more information." });
-      
+
       const [adminData] = await authModel.getAdmin(email, amember_id);
+
+      // Real password check for on-prem accounts. Accounts created before this
+      // endpoint verified passwords (or created via the SSO flow, which doesn't
+      // set one) will have adminData.password == null — those need a reset.
+      if (adminData) {
+        if (!adminData.password) {
+          return res.status(400).json({code: 400, error: 'Not Set', message: 'No password is set for this account yet. Use "Forgot Password" to set one.', data: null});
+        }
+        const {decoded: decodedPassword} = await passwordService.decrypt(adminData.password, process.env.CRYPTO_PASSWORD);
+        if (decodedPassword !== password) {
+          return res.status(400).json({code: 400, error: 'Invalid', message: 'Invalid email or password.', data: null});
+        }
+      }
 
       if (!(now <= expire_time)) {
         if(adminData) {
@@ -543,9 +567,10 @@ class AuthService {
 
         }
       } else {
-        timezone = timezone || 'Asia/Kolkata';
         defaultSettings.pack.expiry = expire_time;
-        const adminNewData = await authModel.insertAdminDetails(first_name, last_name, email, phone, begin_date, address);
+        const {encoded: encryptedPassword, error: encryptErr} = passwordService.encrypt(password, process.env.CRYPTO_PASSWORD);
+        if (encryptErr) return res.status(500).json({code: 500, error: 'Server Error', message: 'Failed to secure password.', data: null});
+        const adminNewData = await authModel.insertAdminDetails(first_name, last_name, email, phone, begin_date, address, encryptedPassword);
         const organizationData = await authModel.insertOrganisation(adminNewData.insertId, timezone, amember_id, total_allowed_user_count, region);
         authModel.insertLocationAndDepartment_ROLE(organizationData.insertId, timezone, defaultSettings.tracking.fixed, adminNewData.insertId, (err, data) => {});
         const adminSettingData = await authModel.insertOrganizationSetting(organizationData.insertId, defaultSettings);
