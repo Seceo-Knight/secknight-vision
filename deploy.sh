@@ -59,6 +59,17 @@ if [ -z "${ADMIN_PASSWORD:-}" ]; then
 fi
 [ ${#ADMIN_PASSWORD} -ge 6 ] || fail "Admin password must be at least 6 characters."
 
+# Both values get written into .env files (via sed, where & is special in the
+# replacement text) and into a JSON body sent by curl later. Reject anything
+# that could break either of those rather than risk silent corruption.
+unsafe_chars() { [[ "$1" == *'"'* || "$1" == *"'"* || "$1" == *'\'* || "$1" == *'`'* || "$1" == *'$'* || "$1" == *'|'* || "$1" == *'&'* ]]; }
+if unsafe_chars "$ADMIN_EMAIL"; then
+    fail "Admin email contains a character (quote, backslash, \$, |, or &) that this script can't safely handle. Please re-run with a plain email address."
+fi
+if unsafe_chars "$ADMIN_PASSWORD"; then
+    fail "Admin password contains a character (\", ', \\, \`, \$, |, or &) that would break this script's config files. Letters, digits, and symbols like @#%^*!-_+= are all fine — please re-run with a password that avoids the ones listed above."
+fi
+
 ok "Deploying for http://${SERVER_IP}/  —  admin login: ${ADMIN_EMAIL}"
 
 # ---------------------------------------------------------------------------
@@ -145,7 +156,7 @@ ok "nginx installed"
 
 if ! command -v pm2 >/dev/null; then
     step "Installing PM2"
-    npm install -g pm2 --silent
+    npm install -g pm2 --no-fund --no-audit --loglevel=error
 fi
 ok "PM2 installed"
 
@@ -171,6 +182,14 @@ set_env() {
     if grep -qE "^${key}[[:space:]]*=" "$file" 2>/dev/null; then
         sed -i "s|^${key}[[:space:]]*=.*|${key} = ${value}|" "$file"
     else
+        # Several of this repo's sample.env/.env.example templates don't end
+        # with a trailing newline (confirmed: remote_socket, realtime,
+        # cronjobs, migrations). Appending directly would glue this line onto
+        # the end of the last existing line, corrupting both — silently, with
+        # no error. Force a newline first if the file doesn't already end in one.
+        if [ -s "$file" ] && [ "$(tail -c1 "$file" | wc -l)" -eq 0 ]; then
+            echo >> "$file"
+        fi
         echo "${key} = ${value}" >> "$file"
     fi
 }
@@ -180,18 +199,23 @@ set_env() {
 # ---------------------------------------------------------------------------
 step "Running database schema + seed migrations"
 
-pushd Backend/migrations >/dev/null
-npm install --silent
-cp -n sample.env .env
-set_env .env MYSQL_HOST localhost
-set_env .env MYSQL_USERNAME "${MYSQL_APP_USER}"
-set_env .env MYSQL_PASSWORD "${MYSQL_APP_PASSWORD}"
-set_env .env MYSQL_DATABASE_NAME "${MYSQL_DB_NAME}"
-set_env .env MONGO_URL "mongodb://localhost:27017/${MYSQL_DB_NAME}"
-set_env .env FRESH_DB false
-npm start
-popd >/dev/null
-ok "Schema + seed data ready (safe to re-run — CREATE TABLE IF NOT EXISTS)"
+EXISTING_TABLE_COUNT=$(mysql -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MYSQL_DB_NAME}';")
+if [ "$EXISTING_TABLE_COUNT" -ge 50 ]; then
+    ok "Schema already present (${EXISTING_TABLE_COUNT} tables) — skipping re-run. This dump isn't safe to run twice (its ADD PRIMARY KEY statements aren't guarded), so re-running it here would only print harmless-but-alarming errors."
+else
+    pushd Backend/migrations >/dev/null
+    npm install --no-fund --no-audit --loglevel=error
+    cp -n sample.env .env
+    set_env .env MYSQL_HOST localhost
+    set_env .env MYSQL_USERNAME "${MYSQL_APP_USER}"
+    set_env .env MYSQL_PASSWORD "${MYSQL_APP_PASSWORD}"
+    set_env .env MYSQL_DATABASE_NAME "${MYSQL_DB_NAME}"
+    set_env .env MONGO_URL "mongodb://localhost:27017/${MYSQL_DB_NAME}"
+    set_env .env FRESH_DB false
+    npm start
+    popd >/dev/null
+    ok "Schema + seed data created"
+fi
 
 # ---------------------------------------------------------------------------
 # 7. Backend services
@@ -202,7 +226,7 @@ deploy_service() {
     local dir="$1" pm2name="$2" entry="$3"
     step "Deploying ${pm2name}"
     pushd "Backend/${dir}" >/dev/null
-    npm install --silent
+    npm install --no-fund --no-audit --loglevel=error
     pm2 delete "${pm2name}" >/dev/null 2>&1 || true
     pm2 start "${entry}" --name "${pm2name}"
     popd >/dev/null
@@ -212,7 +236,7 @@ deploy_service() {
 # --- store-logs-api (NestJS, needs a build step) ---
 step "Deploying store-logs-api"
 pushd Backend/store-logs-api >/dev/null
-npm install --silent
+npm install --no-fund --no-audit --loglevel=error
 cp -n .env.example .env
 set_env .env NODE_ENV production
 set_env .env PORT 3001
@@ -237,7 +261,7 @@ ok "store-logs-api started (port 3001)"
 
 # --- web-socket-server (no DB — pure notification relay) ---
 pushd Backend/web-socket-server >/dev/null
-npm install --silent
+npm install --no-fund --no-audit --loglevel=error
 cp -n .env.example .env
 set_env .env PORT 8080
 set_env .env NOTIFICATION_PREFIX notification
@@ -248,7 +272,7 @@ deploy_service web-socket-server web-socket-server server.js
 
 # --- remote_socket (no DB, PM2 name collides with realtime by default — override) ---
 pushd Backend/remote_socket >/dev/null
-npm install --silent
+npm install --no-fund --no-audit --loglevel=error
 cp -n sample.env .env
 set_env .env PORT 3002
 set_env .env NODE_ENV production
@@ -261,7 +285,7 @@ deploy_service remote_socket remote-socket server.js
 
 # --- realtime (no DB, needs Redis pub/sub triplet) ---
 pushd Backend/realtime >/dev/null
-npm install --silent
+npm install --no-fund --no-audit --loglevel=error
 cp -n sample.env .env
 set_env .env PORT 3006
 set_env .env NODE_ENV production
@@ -276,7 +300,7 @@ deploy_service realtime realtime server.js
 
 # --- admin (the main API — includes the on-prem login bootstrap) ---
 pushd Backend/admin >/dev/null
-npm install --silent
+npm install --no-fund --no-audit --loglevel=error
 cp -n .env.example .env
 set_env .env NODE_ENV production
 set_env .env PORT 3000
@@ -305,7 +329,7 @@ deploy_service admin admin adminApi.js
 
 # --- productivity_report ---
 pushd Backend/productivity_report >/dev/null
-npm install --silent
+npm install --no-fund --no-audit --loglevel=error
 cp -n .env.example .env
 set_env .env NODE_ENV production
 set_env .env PORT 3005
@@ -328,7 +352,7 @@ deploy_service productivity_report productivity_report productivity_report_api.j
 
 # --- cronjobs (background worker, no inbound HTTP needed) ---
 pushd Backend/cronjobs >/dev/null
-npm install --silent
+npm install --no-fund --no-audit --loglevel=error
 cp -n sample.env .env
 set_env .env NODE_ENV production
 set_env .env PORT 3003
@@ -352,7 +376,7 @@ deploy_service cronjobs cronjobs cronService.js
 # ---------------------------------------------------------------------------
 step "Building frontend"
 pushd Frontend >/dev/null
-npm install --silent
+npm install --no-fund --no-audit --loglevel=error
 cat > .env <<EOF
 VITE_API_URL=http://${SERVER_IP}:3000/api/v3
 VITE_SOCKET_URL=ws://${SERVER_IP}:3006
