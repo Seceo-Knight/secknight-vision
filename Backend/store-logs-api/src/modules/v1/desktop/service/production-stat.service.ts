@@ -71,7 +71,7 @@ let getProductionStarts = async (userData: IDecodedToken, sessions: any): Promis
         const columns = `*`;
         const filter = `user_id = ${userId} AND admin_id = ${adminId}`;
         // const { getError, productionStatData } = await ProductionStatsService.getProductionStatKamal(filter, columns);
-        const productionStatData = await this.productionStatsModel.getproductionStartData(userData.employee_id);
+        const productionStatData = await (this as any).productionStatsModel.getproductionStartData(userData.employee_id);
 
         // loop the request session data
         // Check difference in loop start time and server logout_time
@@ -270,7 +270,7 @@ let getProductionStarts = async (userData: IDecodedToken, sessions: any): Promis
         // return
         for (let key in dbOperations) {
             if (dbOperations[key].type === 'update') {
-                const updateStatus = await this.productionStatsModel.updateProductionStat(dbOperations[key].data.log_sheet_id, dbOperations[key].data.logout_time, dbOperations[key].data.working_hours, dbOperations[key].data.non_working_hours, dbOperations[key].data.total_hours, dbOperations[key].data.w_sec, dbOperations[key].data.n_sec, dbOperations[key].data.t_sec);
+                const updateStatus = await (this as any).productionStatsModel.updateProductionStat(dbOperations[key].data.log_sheet_id, dbOperations[key].data.logout_time, dbOperations[key].data.working_hours, dbOperations[key].data.non_working_hours, dbOperations[key].data.total_hours, dbOperations[key].data.w_sec, dbOperations[key].data.n_sec, dbOperations[key].data.t_sec);
 
                 // let updateStatus = await updateLogInDatabase(dbOperations[key].data, key);
 
@@ -294,7 +294,7 @@ let getProductionStarts = async (userData: IDecodedToken, sessions: any): Promis
                 //     "${tempData.total_hours}",
                 //     ${0}
                 //     )`);
-                const insertStatus = await this.productionStatsModel.addProductionStats(key, tempData.day, tempData.login_time, tempData.logout_time, userId, adminId, tempData.working_hours, tempData.non_working_hours, tempData.total_hours, w_sec, t_sec, n_sec);
+                const insertStatus = await (this as any).productionStatsModel.addProductionStats(key, tempData.day, tempData.login_time, tempData.logout_time, userId, adminId, tempData.working_hours, tempData.non_working_hours, tempData.total_hours, w_sec, t_sec, n_sec);
                 success.push(insertStatus);
 
             }

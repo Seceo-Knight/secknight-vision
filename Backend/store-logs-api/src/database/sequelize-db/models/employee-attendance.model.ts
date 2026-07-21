@@ -13,7 +13,7 @@ export class EmployeeAttendanceModel {
         return await this.tableRepo.findAll<EmployeeAttendanceEntity>({
             where: {
                 employee_id,
-                date: { [Op.between]: [startDate, endDate] }
+                date: { [Op.between]: [startDate, endDate] as any }
             },
             attributes: ['id', 'date', 'employee_id'],
             include: [{

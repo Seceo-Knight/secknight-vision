@@ -209,7 +209,7 @@ export class ScreenRecordService {
     if (this.hasNonUploadedFiles(files)) {
       const retryTimeoutSeconds =
         Number(process.env.RETRY_TIMEOUT_SECONDS) || 5;
-      await new Promise(resolve =>
+      await new Promise<void>(resolve =>
         setTimeout(() => resolve(), retryTimeoutSeconds * 1000),
       );
       await this.uploadToCloud(ProviderClass, storage, files, userData.email);
