@@ -251,7 +251,7 @@ export class DataLogEventHandler extends EventEmitter {
                         const previousLogoutTime = moment(previousAttendanceData.end_time);
                         const date = moment(previousAttendanceRawData.date).format('YYYY-MM-DD');
                         const details = previousAttendanceRawData.details ? JSON.stringify({ ...JSON.parse(previousAttendanceRawData.details), checkOutIp: ip }) : JSON.stringify({ checkInIp: ip, checkOutIp: ip });
-                        if (startDate.isBefore(previousLoginTime)) continue;
+                        if (startDate.isBefore(previousLoginTime)) { console.log('=== DIAG: SKIP - startDate before previousLoginTime', 'startDate=', startDate.toISOString(), 'previousLoginTime=', previousLoginTime.toISOString()); continue; }
                         // get max logout data from setting and its relevant options
                         const maxLogoutTime = await this.getMaxLogoutTime(item.systemTimeUtc, userData, previousLoginTime, previousLogoutTime, startDate, date);
                         if (startDate.diff(maxLogoutTime) > 0) {
@@ -292,12 +292,13 @@ export class DataLogEventHandler extends EventEmitter {
                                 // EndDate will be end Date
                                 item.systemTimeUtcDayOneEnd = maxLogoutTime.tz('Africa/Abidjan').toISOString();
 
+                                console.log('=== DIAG: trackingMode=', userData.setting.trackingMode);
                                 if (userData.setting.trackingMode == 'fixed') {
                                     let shift;
                                     shift = await timesByDate(userData.setting.tracking.fixed, maxLogoutTime.tz(userData.timezone).format('YYYY-MM-DD'), userData.timezone);
                                     if (shift.start) {
-                                        if (!(maxLogoutTime.isBetween(shift.start, shift.end))) continue;
-                                    } else if (!shift.start) continue;
+                                        if (!(maxLogoutTime.isBetween(shift.start, shift.end))) { console.log('=== DIAG: SKIP - fixed shift, maxLogoutTime not between shift start/end'); continue; }
+                                    } else if (!shift.start) { console.log('=== DIAG: SKIP - fixed shift, no shift.start'); continue; }
                                 }
                                 await this.empAttendanceModel.insertAttendance(
                                     item.userId, item.adminId,
@@ -327,6 +328,7 @@ export class DataLogEventHandler extends EventEmitter {
                     console.log('--err--', err.message);
                 }
             }
+            console.log('=== DIAG: before updateActivityAndUsage, attendanceDates=', data.map(d => d.attendanceDate));
             await this.updateActivityAndUsage(data, userData.timezone, userData);
         } catch (err) {
             return console.log('--err--', err.message);
