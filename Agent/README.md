@@ -31,6 +31,8 @@ compatibility shim — read directly from the backend source:
 - Remote control: mouse, keyboard, and the shortcut buttons (Windows key,
   File Explorer, Run, Copy, Paste, Lock, Restart, Shutdown)
 
+- Periodic screen recordings (off by default — see limitation below)
+
 ## Known limitations (v1)
 
 - Windows-only for window tracking and remote control (uses `pywin32`).
@@ -39,8 +41,26 @@ compatibility shim — read directly from the backend source:
 - `url` is not populated for browser tabs yet (App History works, Web
   History will show blank URLs) — browser URL extraction needs
   browser-specific accessibility APIs, left for a follow-up.
-- Screen recording upload is implemented in the API client but not yet
-  wired into a capture loop in `main.py`.
+- Screen recording (`screen_record_enabled`) captures and uploads
+  `.mp4` files, but the backend's `ScreenRecordService` currently only
+  accepts uploads for organizations with a cloud storage provider
+  configured (Google Drive/S3/FTP/etc. — see
+  `Backend/store-logs-api/.../screen-record.service.ts`). There's no
+  local-storage ("LC") branch for screen records yet, unlike
+  screenshots (that LC work is tracked separately, still in progress
+  server-side), so recordings will fail to upload with a 400 until
+  either a real provider is configured or that LC branch is added. Left
+  disabled by default for this reason.
+- The Key Strokes tab needs no separate agent/backend work: it's read
+  from the same `employee_activities` Mongo collection that the
+  Productivity/App/Web History tabs already use (populated by
+  `Backend/productivity_report`'s `insertActivity`), keyed off the
+  `keystrokes` field this agent's `tracker.py` already sends per
+  app-usage segment. It was previously suspected this needed a new
+  MySQL table — traced the actual read path
+  (`Backend/admin/.../employee/Employee.controller.js`'s
+  `getKeyStrokes`) and confirmed it reads Mongo, not MySQL, so no
+  backend change was needed there.
 
 ## Setup (development)
 
@@ -88,6 +108,10 @@ the executable.
 | `screenshots_enabled`          | Toggle screenshot capture on/off                                        |
 | `idle_detection_enabled`       | Toggle idle detection on/off                                            |
 | `remote_control_enabled`       | Toggle live Screen Cast + remote control on/off                         |
+| `screen_record_enabled`        | Toggle periodic screen recording on/off (default false, see limitations)|
+| `screen_record_interval_seconds`| How often to start a new recording (default 600)                       |
+| `screen_record_duration_seconds`| Length of each recording, server caps at 300s (default 60)             |
+| `screen_record_fps`            | Capture frame rate for recordings (default 4)                           |
 
 ## Project layout
 
@@ -105,6 +129,7 @@ Agent/
     ├── tracker.py           per-second activity tracking + batching
     ├── window_info.py       active window/app detection (Windows/macOS/Linux)
     ├── screenshot.py        multi-monitor screenshot capture
+    ├── screen_record.py      periodic screen recording capture (mp4)
     ├── remote_control.py    live Screen Cast + remote-control WebSocket client
     └── tray_ui.py           system tray icon + login popup
 ```

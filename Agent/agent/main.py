@@ -11,6 +11,7 @@ import time
 import uuid
 
 from . import screenshot as screenshot_mod
+from . import screen_record as screen_record_mod
 from .api_client import ApiClient, ApiError
 from .config import Config
 from .remote_control import RemoteControlClient
@@ -31,6 +32,7 @@ class Agent:
         self.remote_control = RemoteControlClient(self.config, get_access_token=lambda: self.client.access_token)
         self._running = False
         self._screenshot_thread = None
+        self._screen_record_thread = None
 
     # --------------------------------------------------------------- login
     def login(self):
@@ -71,6 +73,24 @@ class Agent:
             finally:
                 screenshot_mod.cleanup(paths)
 
+    # ------------------------------------------------------------ screen record
+    def _screen_record_loop(self):
+        interval = self.config.screen_record_interval_seconds
+        duration = self.config.screen_record_duration_seconds
+        fps = self.config.screen_record_fps
+        while self._running:
+            time.sleep(interval)
+            if not self.config.screen_record_enabled or not self._running:
+                continue
+            path = None
+            try:
+                path = screen_record_mod.record_screen(duration, fps=fps)
+                self.client.upload_screen_record(path)
+            except Exception:
+                pass
+            finally:
+                screen_record_mod.cleanup(path)
+
     # ----------------------------------------------------------------- run
     def run(self):
         self.tray.start()
@@ -86,6 +106,10 @@ class Agent:
         if self.config.screenshots_enabled:
             self._screenshot_thread = threading.Thread(target=self._screenshot_loop, daemon=True)
             self._screenshot_thread.start()
+
+        if self.config.screen_record_enabled:
+            self._screen_record_thread = threading.Thread(target=self._screen_record_loop, daemon=True)
+            self._screen_record_thread.start()
 
         try:
             while self._running:

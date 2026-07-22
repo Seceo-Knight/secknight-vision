@@ -11,6 +11,12 @@ config.json fields:
   activity_interval_seconds   how often to batch-send activity (default 180)
   screenshot_interval_seconds how often to capture a screenshot (default 300)
   idle_threshold_seconds      no-input gap before marking the user idle (default 300)
+  screen_record_enabled          capture+upload periodic screen recordings (default false -
+                                  see agent/screen_record.py docstring: the backend currently
+                                  requires a cloud storage provider to accept these)
+  screen_record_interval_seconds how often to start a new recording (default 600)
+  screen_record_duration_seconds length of each recording, server hard-caps at 300 (default 60)
+  screen_record_fps              capture frame rate (default 4)
 """
 
 import json
@@ -34,6 +40,10 @@ DEFAULTS = {
     "screenshots_enabled": True,
     "idle_detection_enabled": True,
     "remote_control_enabled": True,
+    "screen_record_enabled": False,
+    "screen_record_interval_seconds": 600,
+    "screen_record_duration_seconds": 60,
+    "screen_record_fps": 4,
 }
 
 
