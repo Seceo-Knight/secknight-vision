@@ -153,7 +153,9 @@ export class ActivityService {
             // Insert in mongo db with bulk insertion mongoose api
             try {
                 const result: any = await this.userActivityDataMongoModel.insert(finalData);
+                console.log('=== DIAG: about to emit data-receieved-for-logs, result.length=', result.length, 'employee_id=', userData.employee_id, 'org=', userData.organization_id);
                 this.emitter.emit('data-receieved-for-logs', result, userData, ip);
+                console.log('=== DIAG: emit() call returned (does not mean listener finished)');
                 return this.responseHelperService.sendResponse(200, 'Data saved', null, { inserted: result.length });
             } catch (error) {
                 // this.logger.logger.error(`-------------${JSON.stringify(error)}`);

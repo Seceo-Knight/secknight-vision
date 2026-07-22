@@ -60,9 +60,11 @@ export class DataLogEventHandler extends EventEmitter {
                     timesheetIdleTime: userData.setting.timesheetIdleTime ? userData.setting.timesheetIdleTime : '00:00',
                     productivityCategory: Number(userData.productivityCategory ?? 0),
                 }
+                console.log('=== DIAG: about to POST to ACTIVITY_PRODUCTIVITY_URL =', process.env.ACTIVITY_PRODUCTIVITY_URL);
                 const res = await this.httpService.post(process.env.ACTIVITY_PRODUCTIVITY_URL, params).toPromise();
-                console.log(res.data.message)
+                console.log('=== DIAG: productivity URL responded, message =', res.data.message)
             } catch (err) {
+                console.log('=== DIAG: productivity URL call FAILED:', err && err.message);
                 await this.FailedDataPushFun(params);
                 console.error("---------Error in updating activities stats--------");
             }
@@ -163,6 +165,7 @@ export class DataLogEventHandler extends EventEmitter {
 
     @On('data-receieved-for-logs')
     async updateToken(data: IActivityUsageData[], userData: IDecodedToken, ip: string): Promise<any> {
+        console.log('=== DIAG: updateToken LISTENER FIRED, data.length=', data && data.length, 'employee_id=', userData && userData.employee_id);
         // make session
         try {
             for (const item of data) {
