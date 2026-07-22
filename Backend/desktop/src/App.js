@@ -178,6 +178,16 @@ class App {
          * Registering routes
          */
         app.use('/api/v3', new V3Routes().getRouters());
+
+        /**
+         * Compatibility shim: the pre-built Qt desktop agent (empmonitor.exe)
+         * calls a legacy, unversioned `/employee/login` path for its login
+         * popup instead of `/api/v3/auth/authenticate`. Route it at the exact
+         * expected path but through the real, current auth logic so it's
+         * authenticating against real data, not a stub.
+         */
+        app.post('/employee/login', (req, res, next) => require('./routes/v3/auth/auth.controller').authenticate(req, res, next));
+
         app.use(require('./middleware/error'));
 
         app.use('/api/custom/on-premise-desktop', (req, res) => {
