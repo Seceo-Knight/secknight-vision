@@ -16,6 +16,7 @@ import { OnedriveUtils } from '../utils/one-drive.utils';
 import { SFtpUtils } from '../utils/SFTP.utils';
 import { DropboxUtils } from '../utils/dropbox.utils';
 import { WebDavUtils } from '../utils/WebDav.utils';
+import { LocalStorageUtils } from '../utils/local-storage.utils';
 import { RedisService } from 'nestjs-redis';
 import { Logger } from '../../../../common/errlogger/logger';
 import ConfigFile from '../../../../../../config/config.js';
@@ -99,6 +100,7 @@ export class ScreenshotService {
         this.providers.set(providerCodes.SFTP, SFtpUtils);
         this.providers.set(providerCodes.Dropbox, DropboxUtils);
         this.providers.set(providerCodes.webdav, WebDavUtils);
+        this.providers.set(providerCodes.local, LocalStorageUtils);
     }
 
     async uploadToCloud(

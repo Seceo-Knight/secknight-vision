@@ -17,6 +17,7 @@ export const providerCodes = {
     OneDrive: 'MO',
     Dropbox: 'DB',
     webdav: 'WD',
+    local: 'LC',
 }
 
 export const videoConditions = {
