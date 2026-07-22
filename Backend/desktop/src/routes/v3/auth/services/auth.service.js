@@ -184,10 +184,16 @@ class AuthService {
                 permissionData = _.pluck(permissionData, 'permission_id');
             }
             if (user.system_type == 1 && process.env.CHECK_PASSWORD == 'true' && (user.software_version == null || user.software_version >= process.env.PASSWORD_CHECK_VERSION)) {
-                // Decrypt Both database-password and password passed in parameter and match them
+                // Decrypt Both database-password and password passed in parameter and match them.
+                // Some agent clients (e.g. the compiled Qt desktop agent) send the
+                // password as plain text instead of pre-encrypting it with our
+                // CRYPTO_PASSWORD. Accept either form: prefer the encrypted match,
+                // fall back to a direct plaintext comparison against the decrypted
+                // DB value so both client styles authenticate correctly.
                 const { decoded: passwordDB } = passwordService.decrypt(user.password, process.env.CRYPTO_PASSWORD);
                 const { decoded: passwordParam } = passwordService.decrypt(userData.password, process.env.CRYPTO_PASSWORD);
-                if (passwordDB !== passwordParam) {
+                const passwordMatches = passwordDB === passwordParam || passwordDB === userData.password;
+                if (!passwordMatches) {
                     return next(new errorHandler('Invalid Password', 401));
                 }
             }
