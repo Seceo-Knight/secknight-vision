@@ -189,17 +189,31 @@ class App {
         app.post('/employee/login', (req, res, next) => require('./routes/v3/auth/auth.controller').authenticate(req, res, next));
 
         /**
-         * TEMPORARY DIAGNOSTIC: log the exact shape of data the Qt desktop
-         * agent sends to /activity/add-activity so we can build a real
-         * handler (or proxy to store-logs-api) against real data instead of
-         * guessing. Remove once the real handler is in place.
+         * Compatibility shim: the Qt desktop agent posts activity data to
+         * this legacy unversioned path instead of store-logs-api's real
+         * /api/desktop/add-activity-log endpoint. The request body is a
+         * byte-for-byte match for store-logs-api's UsageActivityDataDTO, so
+         * proxy straight through rather than re-implementing storage here.
          */
-        app.post('/activity/add-activity', (req, res) => {
-            console.log('=== /activity/add-activity RAW BODY ===');
-            console.log(JSON.stringify(req.body, null, 2));
-            console.log('=== headers ===');
-            console.log(JSON.stringify(req.headers, null, 2));
-            return res.status(200).json({ code: 200, message: 'Data inserted successfully', data: Array.isArray(req.body?.data) ? req.body.data.length : 0 });
+        app.post('/activity/add-activity', async (req, res) => {
+            const axios = require('axios');
+            try {
+                const upstream = await axios.post(
+                    'http://127.0.0.1:3001/api/desktop/add-activity-log',
+                    req.body,
+                    {
+                        headers: {
+                            Authorization: req.headers['authorization'],
+                            'Content-Type': 'application/json',
+                        },
+                        validateStatus: () => true,
+                    }
+                );
+                return res.status(upstream.status).json(upstream.data);
+            } catch (err) {
+                console.error('Proxy to store-logs-api add-activity-log failed:', err.message);
+                return res.status(502).json({ code: 502, message: 'Upstream activity service unreachable', error: err.message });
+            }
         });
 
         app.use(require('./middleware/error'));
