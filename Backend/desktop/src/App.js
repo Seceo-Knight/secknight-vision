@@ -216,6 +216,37 @@ class App {
             }
         });
 
+        /**
+         * Compatibility shim: the Qt desktop agent posts screenshots to
+         * this legacy unversioned path (multipart/form-data, field name
+         * "screenshots") instead of store-logs-api's real
+         * /api/desktop/upload-screenshots endpoint. express.json()/
+         * urlencoded() above only consume matching content-types, so the
+         * raw multipart stream is untouched here - pipe it straight
+         * through, preserving headers (boundary, auth, length) unchanged.
+         */
+        app.post('/desktop/upload-screenshots', async (req, res) => {
+            const axios = require('axios');
+            try {
+                const headers = { ...req.headers };
+                delete headers.host;
+                const upstream = await axios.post(
+                    'http://127.0.0.1:3001/api/v1/desktop/upload-screenshots',
+                    req,
+                    {
+                        headers,
+                        maxBodyLength: Infinity,
+                        maxContentLength: Infinity,
+                        validateStatus: () => true,
+                    }
+                );
+                return res.status(upstream.status).json(upstream.data);
+            } catch (err) {
+                console.error('Proxy to store-logs-api upload-screenshots failed:', err.message);
+                return res.status(502).json({ code: 502, message: 'Upstream screenshot service unreachable', error: err.message });
+            }
+        });
+
         app.use(require('./middleware/error'));
 
         app.use('/api/custom/on-premise-desktop', (req, res) => {
