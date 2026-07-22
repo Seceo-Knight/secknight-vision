@@ -1,0 +1,13 @@
+# Real config with your server's secrets - never commit this
+config.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# PyInstaller
+build/
+dist/
+*.spec.bak

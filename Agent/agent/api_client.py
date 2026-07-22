@@ -1,0 +1,118 @@
+"""
+All HTTP calls to the SecKnight Vision / EmpMonitor backend, using the real,
+current (non-legacy) API contract read directly from the backend source:
+
+  POST {auth_base_url}/api/v3/auth/authenticate
+      Backend/desktop/src/routes/v3/auth/services/auth.service.js
+
+  POST {data_base_url}/api/v1/desktop/add-activity-log
+      Backend/store-logs-api/.../desktop.controller.ts + dto/usage-activity-data.dto.ts
+
+  POST {data_base_url}/api/v1/desktop/upload-screenshots   (multipart, field "screenshots")
+  POST {data_base_url}/api/v1/desktop/upload-screen-records (multipart, field "screenRecords")
+      Backend/store-logs-api/.../desktop.controller.ts + dto/screenshot.dto.ts / screen-record.dto.ts
+
+Auth header on every authenticated call: "Authorization: Bearer <accessToken>"
+(Backend/store-logs-api/src/modules/v1/auth/auth.middleware.ts splits on
+a single space and takes the second token).
+"""
+
+import requests
+
+from . import crypto_utils
+
+
+class ApiError(Exception):
+    def __init__(self, message: str, status_code: int = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class ApiClient:
+    def __init__(self, config):
+        self.config = config
+        self.access_token = None
+        self.settings = None
+        self.room_id = None
+        self.employee_name = None
+
+    # ------------------------------------------------------------------ auth
+    def login(self, email: str, password: str, mac_id: str = None) -> dict:
+        encrypted_password = crypto_utils.encrypt(password, self.config.crypto_password)
+        body = {"email": email, "password": encrypted_password, "testing": 0}
+        if mac_id:
+            body["macId"] = mac_id
+
+        resp = requests.post(
+            f"{self.config.auth_base_url}/api/v3/auth/authenticate",
+            json=body,
+            timeout=30,
+        )
+        data = resp.json() if resp.content else {}
+
+        if resp.status_code != 200 or not data.get("success"):
+            message = data.get("message") or data.get("error") or f"Login failed (HTTP {resp.status_code})"
+            raise ApiError(message, resp.status_code)
+
+        self.access_token = data["accessToken"]
+        self.settings = data.get("settings", {})
+        self.room_id = data.get("roomId")
+        self.employee_name = data.get("name")
+        return data
+
+    def _auth_headers(self) -> dict:
+        if not self.access_token:
+            raise ApiError("Not logged in")
+        return {"Authorization": f"Bearer {self.access_token}"}
+
+    # -------------------------------------------------------------- activity
+    def send_activity(self, sign: str, data_items: list) -> dict:
+        resp = requests.post(
+            f"{self.config.data_base_url}/api/v1/desktop/add-activity-log",
+            json={"sign": sign, "data": data_items},
+            headers=self._auth_headers(),
+            timeout=30,
+        )
+        payload = resp.json() if resp.content else {}
+        if resp.status_code != 200:
+            raise ApiError(payload.get("message", f"Activity upload failed (HTTP {resp.status_code})"), resp.status_code)
+        return payload
+
+    # ------------------------------------------------------------ screenshots
+    def upload_screenshots(self, file_paths: list, project_id: int = 0, task_id: int = 0) -> dict:
+        files = [
+            ("screenshots", (fp.split("/")[-1].split("\\")[-1], open(fp, "rb"), "image/png"))
+            for fp in file_paths
+        ]
+        try:
+            resp = requests.post(
+                f"{self.config.data_base_url}/api/v1/desktop/upload-screenshots",
+                files=files,
+                data={"projectId": project_id, "taskId": task_id},
+                headers=self._auth_headers(),
+                timeout=60,
+            )
+        finally:
+            for _, (_, fh, _) in files:
+                fh.close()
+        payload = resp.json() if resp.content else {}
+        if resp.status_code != 200:
+            raise ApiError(payload.get("message", f"Screenshot upload failed (HTTP {resp.status_code})"), resp.status_code)
+        return payload
+
+    # ---------------------------------------------------------- screen record
+    def upload_screen_record(self, file_path: str, project_id: int = 0, task_id: int = 0, must_compress: bool = False) -> dict:
+        filename = file_path.split("/")[-1].split("\\")[-1]
+        with open(file_path, "rb") as fh:
+            files = [("screenRecords", (filename, fh, "video/mp4"))]
+            resp = requests.post(
+                f"{self.config.data_base_url}/api/v1/desktop/upload-screen-records",
+                files=files,
+                data={"projectId": project_id, "taskId": task_id, "mustCompressed": str(must_compress).lower()},
+                headers=self._auth_headers(),
+                timeout=120,
+            )
+        payload = resp.json() if resp.content else {}
+        if resp.status_code != 200:
+            raise ApiError(payload.get("message", f"Screen record upload failed (HTTP {resp.status_code})"), resp.status_code)
+        return payload
