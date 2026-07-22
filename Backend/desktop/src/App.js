@@ -199,7 +199,7 @@ class App {
             const axios = require('axios');
             try {
                 const upstream = await axios.post(
-                    'http://127.0.0.1:3001/api/desktop/add-activity-log',
+                    'http://127.0.0.1:3001/api/v1/desktop/add-activity-log',
                     req.body,
                     {
                         headers: {
