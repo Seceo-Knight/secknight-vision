@@ -262,8 +262,8 @@ export class DataLogEventHandler extends EventEmitter {
                                 await this.empAttendanceModel.insertAttendance(
                                     item.userId, item.adminId,
                                     startDate.tz(userData.timezone).format('YYYY-MM-DD'),
-                                    startTime.format('YYYY-MM-DD HH:mm:ss'),
-                                    endDate.format('YYYY-MM-DD HH:mm:ss'),
+                                    startTime.clone().utc().format('YYYY-MM-DD HH:mm:ss'),
+                                    endDate.clone().utc().format('YYYY-MM-DD HH:mm:ss'),
                                     JSON.stringify({ checkInIp: ip, checkOutIp: ip }));
                                     if(configFile.EXTERNAL_CLOCKINOUT_CALL.includes(userData.organization_id)) this.emitter.emit('clock-in-clock-out-update-api-request', "insert", startDate.tz(userData.timezone).format('YYYY-MM-DD'), startTime.toISOString(), endDate.toISOString(), userData);
                                 item.attendanceDate = startDate.tz(userData.timezone).format('YYYY-MM-DD');
@@ -318,8 +318,8 @@ export class DataLogEventHandler extends EventEmitter {
                         await this.empAttendanceModel.insertAttendance(
                             item.userId, item.adminId,
                             startDate.tz(userData.timezone).format('YYYY-MM-DD'),
-                            startTime.format('YYYY-MM-DD HH:mm:ss'),
-                            endDate.format('YYYY-MM-DD HH:mm:ss'),
+                            startTime.clone().utc().format('YYYY-MM-DD HH:mm:ss'),
+                            endDate.clone().utc().format('YYYY-MM-DD HH:mm:ss'),
                             JSON.stringify({ checkInIp: ip, checkOutIp: ip }));
                         item.attendanceDate = startDate.tz(userData.timezone).format('YYYY-MM-DD');
                         if(configFile.EXTERNAL_CLOCKINOUT_CALL.includes(userData.organization_id)) this.emitter.emit('clock-in-clock-out-update-api-request', "insert", startDate.tz(userData.timezone).format('YYYY-MM-DD'), startTime.toISOString(), endDate.toISOString(), userData);
