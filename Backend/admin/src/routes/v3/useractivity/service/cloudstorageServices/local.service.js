@@ -63,27 +63,36 @@ class LocalStorage {
         }
     }
 
-    // Returns { day: fileCount } for days that have at least one matching
-    // file, or null if none - same contract as S3Utils.getKeyWithDate's
-    // caller expects (controller does `if (!dateFoldersId) return 400`).
-    async checkDataExists({ root }, { mainFolderName, email, dayFolders }) {
+    // dayFolders is computed from a UTC conversion of the requested local
+    // date/hour range (see parseHourRange in index.js), while filenames
+    // encode the agent machine's local wall-clock date - matching those two
+    // precisely here is unreliable across timezones. This is only a gate
+    // check before getFilesData()'s real (timezone-correct) per-hour
+    // filtering runs, so keep it simple: just confirm the employee has any
+    // files at all. A false positive here just means getScreenshotsFlat
+    // returns empty hour buckets, which the UI already handles gracefully.
+    async checkDataExists({ root }, { mainFolderName, email }) {
         const files = await this.listFiles(root, mainFolderName, email);
-        const dateFoldersKeys = {};
-        for (const day of dayFolders) {
-            const count = files.filter((name) => this.fileDateMatches(name, day)).length;
-            if (count) dateFoldersKeys[day] = count;
-        }
-        if (_.isEmpty(dateFoldersKeys)) return null;
-        return dateFoldersKeys;
+        if (!files.length) return null;
+        return { any: files.length };
     }
 
-    async getFilesData({ conection, totalHour, mainFolder, email }) {
+    // totalHour entries are UTC instants (see cloudstorageServices/index.js's
+    // parseHourRange). Filenames, however, encode the AGENT MACHINE's local
+    // wall-clock time (Agent/agent/screenshot.py uses datetime.now(), not
+    // UTC - see file.utils.ts's `originalname.substr(3, 10)` day-key
+    // extraction on the write side, which also uses the raw filename as-is).
+    // Convert each UTC instant back to the employee's configured timezone
+    // before matching, so "the local hour/day this UTC instant falls in" is
+    // compared against "the local hour/day baked into the filename".
+    async getFilesData({ conection, totalHour, mainFolder, email, timezone }) {
         const { root, publicUrl } = conection;
         const allFiles = await this.listFiles(root, mainFolder, email);
 
         return totalHour.map((time) => {
-            const day = moment(time).format('YYYY-MM-DD');
-            const hour = moment(time).format('HH');
+            const local = timezone ? moment(time).tz(timezone) : moment(time);
+            const day = local.format('YYYY-MM-DD');
+            const hour = local.format('HH');
             const matches = allFiles.filter(
                 (name) => name.split('-')[0] === hour && this.fileDateMatches(name, day),
             );
@@ -96,12 +105,12 @@ class LocalStorage {
     }
 
     async getScreenshotsFlat(conection, { totalHour, timezone, email }) {
-        const screenshotsFlat = await this.getFilesData({ conection, totalHour, mainFolder: this.ssFolder, email });
+        const screenshotsFlat = await this.getFilesData({ conection, totalHour, mainFolder: this.ssFolder, email, timezone });
         return this.transformScreenData({ screenshotsFlat, timezone, totalHour });
     }
 
     async getScreenRecords(conection, { totalHour, timezone, email }) {
-        const screenRecords = await this.getFilesData({ conection, totalHour, mainFolder: this.srFolder, email });
+        const screenRecords = await this.getFilesData({ conection, totalHour, mainFolder: this.srFolder, email, timezone });
         return this.transformRecordsData({ screenRecords, timezone, totalHour });
     }
 
