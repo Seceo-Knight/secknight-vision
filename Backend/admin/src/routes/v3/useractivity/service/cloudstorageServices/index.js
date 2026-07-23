@@ -14,6 +14,7 @@ const storages = {
     SFTP: require('./sftp.service'),
     DB: require('./dropbox.service'),
     WD: require('./webdav.service'),
+    LC: require('./local.service'),
 }
 
 class CloudStorageServices {
