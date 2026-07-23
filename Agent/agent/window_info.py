@@ -65,21 +65,29 @@ def get_browser_url(app_name, hwnd):
 
     try:
         import uiautomation as auto
+    except Exception as exc:
+        print(f"[window_info] uiautomation import failed: {exc!r} - is it installed? pip install uiautomation==2.0.20")
+        return None
 
+    try:
         window = auto.ControlFromHandle(hwnd)
         if not window:
+            print(f"[window_info] ControlFromHandle({hwnd}) returned nothing for app={app_name!r}")
             return None
 
         edit = window.EditControl(ClassName=_CHROMIUM_OMNIBOX_CLASS_NAME, searchDepth=12)
         if not edit.Exists(0, 0):
             edit = window.EditControl(AutomationId=_FIREFOX_URLBAR_AUTOMATION_ID, searchDepth=15)
         if not edit.Exists(0, 0):
+            print(f"[window_info] address bar control not found for app={app_name!r} (searched Chrome_OmniboxView + urlbar-input)")
             return None
 
         value = edit.GetValuePattern().Value
         value = (value or "").strip()
+        print(f"[window_info] got url={value!r} for app={app_name!r}")
         return value or None
-    except Exception:
+    except Exception as exc:
+        print(f"[window_info] get_browser_url failed for app={app_name!r}: {exc!r}")
         return None
 
 
