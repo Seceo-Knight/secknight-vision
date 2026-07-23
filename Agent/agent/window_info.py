@@ -75,11 +75,19 @@ def get_browser_url(app_name, hwnd):
             print(f"[window_info] ControlFromHandle({hwnd}) returned nothing for app={app_name!r}")
             return None
 
-        edit = window.EditControl(ClassName=_CHROMIUM_OMNIBOX_CLASS_NAME, searchDepth=12)
+        # No searchDepth limit - Chrome's internal UI tree nests the omnibox
+        # deeper than a shallow search reaches (12/15 wasn't enough), and this
+        # search only runs on an actual window/tab change, not every tick, so
+        # the extra cost of an unbounded walk is acceptable.
+        edit = window.EditControl(ClassName=_CHROMIUM_OMNIBOX_CLASS_NAME)
         if not edit.Exists(0, 0):
-            edit = window.EditControl(AutomationId=_FIREFOX_URLBAR_AUTOMATION_ID, searchDepth=15)
+            edit = window.EditControl(AutomationId=_FIREFOX_URLBAR_AUTOMATION_ID)
         if not edit.Exists(0, 0):
-            print(f"[window_info] address bar control not found for app={app_name!r} (searched Chrome_OmniboxView + urlbar-input)")
+            # Chrome's omnibox has this accessible Name across versions even
+            # when the class-name lookup above doesn't match - last resort.
+            edit = window.EditControl(Name="Address and search bar")
+        if not edit.Exists(0, 0):
+            print(f"[window_info] address bar control not found for app={app_name!r} (searched Chrome_OmniboxView, urlbar-input, and by Name)")
             return None
 
         value = edit.GetValuePattern().Value
