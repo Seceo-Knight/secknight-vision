@@ -108,6 +108,12 @@ fi
 MYSQL_APP_USER="secknight"
 MYSQL_DB_NAME="secknight_vision"
 
+# Shared between the store-logs-api (writes files here) and admin (reads
+# them back for the Screenshots/Screen Recordings tabs) sections below - must
+# be the exact same absolute path in both .env files.
+LOCAL_STORAGE_ABS_PATH="${REPO_ROOT}/Backend/store-logs-api/public/local-storage"
+LOCAL_STORAGE_PUBLIC_URL="http://${SERVER_IP}/local-screenshots"
+
 # ---------------------------------------------------------------------------
 # 3. System packages
 # ---------------------------------------------------------------------------
@@ -194,6 +200,24 @@ set_env() {
     fi
 }
 
+# Grants traverse-only (execute) permission on every ancestor directory
+# between "/" and $1, WITHOUT granting read/listing access to anything else
+# in those directories. Needed because nginx's worker runs as www-data, and
+# if this repo happens to be cloned under a directory that isn't
+# world-traversable (most commonly /root, mode 700), nginx can't reach any
+# file under it no matter what permissions the file itself has — every
+# request 403s with no useful error. Found the hard way debugging the local
+# screenshot storage feature: files served fine to `curl` as root but every
+# <img> in the browser silently failed until this was applied.
+grant_traverse_permission() {
+    local dir
+    dir="$(dirname "$1")"
+    while [ "$dir" != "/" ] && [ "$dir" != "." ]; do
+        chmod o+x "$dir" 2>/dev/null || true
+        dir="$(dirname "$dir")"
+    done
+}
+
 # ---------------------------------------------------------------------------
 # 6. Full MySQL + MongoDB schema init (95+ tables, permissions, seed data)
 # ---------------------------------------------------------------------------
@@ -216,6 +240,22 @@ else
     popd >/dev/null
     ok "Schema + seed data created"
 fi
+
+# The base migration dump (Backend/migrations/emp-monitor.sql) only seeds
+# providers 1-7 (Google Drive, Dropbox, S3, Zoho, OneDrive, FTP, SFTP) - it
+# predates the local-disk storage provider added to this fork. Without this
+# row, organizations can never select "Local Storage" under Settings ->
+# Storage Types, and Storage.controller.js's 'LC' branch / the
+# cloudstorageServices/local.service.js read-side never get exercised.
+# Runs every time (not just on fresh installs) so re-running this script
+# backfills it onto pre-existing deployments too.
+step "Ensuring Local Storage provider is seeded"
+mysql "${MYSQL_DB_NAME}" <<SQL
+INSERT INTO providers (id, name, status, integration_id, short_code) VALUES
+(8, 'Local Storage', 1, 1, 'LC')
+ON DUPLICATE KEY UPDATE id = id;
+SQL
+ok "Local Storage provider present (id 8, short_code LC)"
 
 # ---------------------------------------------------------------------------
 # 7. Backend services
@@ -253,6 +293,17 @@ set_env .env JWT_ACCESS_TOKEN_SECRET "${JWT_ACCESS_SECRET}"
 set_env .env JWT_REFRESH_TOKEN_SECRET "${JWT_REFRESH_SECRET}"
 set_env .env CRYPTO_PASSWORD "${CRYPTO_PASSWORD}"
 set_env .env WEB_SOCKET_SERVER_URL "${WEBSOCKET_URL}"
+# Multer temp upload dir (screenshots/recordings land here mid-request before
+# saveFiles() moves them) and the local-disk storage provider's permanent
+# archive dir. Multer does NOT create SS_UPLOAD_PATH itself - every upload
+# 500s with ENOENT if it's missing, silently, with nothing surfaced to the
+# agent beyond a generic "sync failed".
+set_env .env UPLOAD_PATH "./public/uploads"
+set_env .env SS_UPLOAD_PATH "./public/tmp-uploads"
+set_env .env LOCAL_STORAGE_PATH "${LOCAL_STORAGE_ABS_PATH}"
+mkdir -p public/tmp-uploads public/uploads public/local-storage
+chmod -R 755 public
+grant_traverse_permission "${LOCAL_STORAGE_ABS_PATH}"
 npm run build
 pm2 delete store-logs-api >/dev/null 2>&1 || true
 pm2 start dist/main.js --name store-logs-api -i max
@@ -319,6 +370,12 @@ set_env .env ALERT_SERVICE_URL "http://localhost:3000"
 set_env .env WEB_LOCAL "http://${SERVER_IP}/"
 set_env .env WEB_DEV "http://${SERVER_IP}/"
 set_env .env WEB_PRODUCTION "http://${SERVER_IP}/"
+# Read-side for the local-disk ("LC") storage provider - see
+# cloudstorageServices/local.service.js. Must match store-logs-api's
+# LOCAL_STORAGE_PATH exactly, and LOCAL_STORAGE_PUBLIC_URL must match the
+# nginx /local-screenshots/ location block configured below.
+set_env .env LOCAL_STORAGE_PATH "${LOCAL_STORAGE_ABS_PATH}"
+set_env .env LOCAL_STORAGE_PUBLIC_URL "${LOCAL_STORAGE_PUBLIC_URL}"
 # On-prem single-admin login bootstrap (bypasses the EmpCloud SaaS licensing
 # flow this route was originally built for — see Backend/admin/src/routes/v1/auth.js)
 set_env .env AUTH_METHOD_V3 true
@@ -326,6 +383,31 @@ set_env .env ADMIN_PASSWORD "${ADMIN_PASSWORD}"
 set_env .env ADMIN_DETAILS "{\"email\":\"${ADMIN_EMAIL}\"}"
 popd >/dev/null
 deploy_service admin admin adminApi.js
+
+# --- desktop (legacy-path auth/activity/screenshot proxy the Python agent
+# and the old Qt exe both talk to - see Agent/agent/api_client.py's
+# auth_base_url and Backend/desktop/src/App.js's /employee/login,
+# /activity/add-activity, /desktop/upload-screenshots compatibility shims) ---
+pushd Backend/desktop >/dev/null
+npm install --no-fund --no-audit --loglevel=error
+cp -n .env.example .env
+set_env .env NODE_ENV production
+set_env .env PORT 3004
+set_env .env MYSQL_HOST localhost
+set_env .env MYSQL_USERNAME "${MYSQL_APP_USER}"
+set_env .env MYSQL_PASSWORD "${MYSQL_APP_PASSWORD}"
+set_env .env MYSQL_DBNAME "${MYSQL_DB_NAME}"
+set_env .env MONGO_URI "mongodb://localhost:27017/${MYSQL_DB_NAME}"
+set_env .env SESSION_SECRET "${SESSION_SECRET}"
+set_env .env JWT_ACCESS_TOKEN_SECRET "${JWT_ACCESS_SECRET}"
+set_env .env JWT_REFRESH_TOKEN_SECRET "${JWT_REFRESH_SECRET}"
+set_env .env CRYPTO_PASSWORD "${CRYPTO_PASSWORD}"
+set_env .env REDIS_HOST localhost
+set_env .env WEB_SOCKET_SERVER_URL "${WEBSOCKET_URL}"
+set_env .env API_URL_LOCAL "localhost:3004"
+set_env .env ADMIN_URL_LOCAL "http://localhost:3004/"
+popd >/dev/null
+deploy_service desktop desktop desktopApi.js
 
 # --- productivity_report ---
 pushd Backend/productivity_report >/dev/null
@@ -403,6 +485,11 @@ server {
     root /var/www/secknight-vision;
     index index.html;
 
+    location /local-screenshots/ {
+        alias ${LOCAL_STORAGE_ABS_PATH}/;
+        autoindex off;
+    }
+
     location / {
         try_files \$uri \$uri/ /index.html;
     }
@@ -413,21 +500,30 @@ server {
 EOF
 rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/secknight-vision /etc/nginx/sites-enabled/
+# nginx's worker runs as www-data (see /etc/nginx/nginx.conf's `user`
+# directive) - if this repo was cloned under a non-world-traversable
+# directory (e.g. /root, the common case when deploying as root via SSH),
+# www-data can't reach local-storage files at all no matter their own
+# permissions. grant_traverse_permission only adds execute (traverse), never
+# read/listing, on the ancestor directories - it does not expose directory
+# contents, just allows passing through to the specific files nginx is
+# asked for.
+grant_traverse_permission "${LOCAL_STORAGE_ABS_PATH}"
 nginx -t
 systemctl enable nginx >/dev/null
 systemctl restart nginx
-ok "nginx serving http://${SERVER_IP}/"
+ok "nginx serving http://${SERVER_IP}/ (local screenshots at http://${SERVER_IP}/local-screenshots/)"
 
 # ---------------------------------------------------------------------------
 # 9. Firewall
 # ---------------------------------------------------------------------------
 step "Configuring firewall"
 ufw allow OpenSSH >/dev/null
-for port in 80 3000 3001 3002 3005 3006 8080; do
+for port in 80 3000 3001 3002 3004 3005 3006 8080; do
     ufw allow "${port}/tcp" >/dev/null
 done
 ufw --force enable >/dev/null
-ok "Firewall active (SSH + 80 + 3000/3001/3002/3005/3006/8080 open, 3003 stays internal-only)"
+ok "Firewall active (SSH + 80 + 3000/3001/3002/3004/3005/3006/8080 open, 3003 stays internal-only)"
 
 # ---------------------------------------------------------------------------
 # 10. PM2 persistence across reboots
