@@ -1,6 +1,12 @@
 import axios from 'axios';
 
 const BASE_URL = import.meta.env.VITE_API_URL || `https://test-monitor-api.empcloud.com/api/v3`;
+// Backend/realtime - handles notifications AND Screen Cast/remote-control/
+// webcam (agent_auth, check_agent_status, image_request, fe_control, etc -
+// see Backend/realtime/Readme.md's "Supported Realtime Message Types").
+// Backend/remote_socket implements a near-identical but separate protocol on
+// its own port; nothing in this Frontend actually points at it, so agents
+// must connect to THIS service's port, not remote_socket's.
 const SOCKET_BASE_URL = import.meta.env.VITE_SOCKET_URL || `wss://test-monitor-ws.empcloud.com`;
 const BACKEND_V4_URL = import.meta.env.VITE_BACKEND_V4_URL || `https://test-monitor-api.empcloud.com`;
 

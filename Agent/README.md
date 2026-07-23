@@ -14,8 +14,11 @@ compatibility shim — read directly from the backend source:
   (`Backend/store-logs-api/src/modules/v1/desktop/`)
 - Screenshots: `POST {data_base_url}/api/v1/desktop/upload-screenshots`
 - Screen recordings: `POST {data_base_url}/api/v1/desktop/upload-screen-records`
-- Live Screen Cast + remote control: WebSocket to `remote_socket`
-  (`Backend/remote_socket/`), protocol matched against
+- Live Screen Cast + remote control: WebSocket to `Backend/realtime`
+  (NOT `Backend/remote_socket` - that's a separate, unused-by-the-Frontend
+  service implementing a near-identical protocol on its own port; confirmed
+  by checking what `apiService.SOCKET_BASE_URL` / `VITE_SOCKET_URL` actually
+  points ScreenCastTab.jsx at), protocol matched against
   `Frontend/.../ScreenCastTab.jsx`
 
 ## Features
@@ -79,12 +82,12 @@ copy config.example.json config.json
 # CRYPTO_PASSWORD value in your server's Backend/desktop/.env and
 # Backend/store-logs-api/.env (both must already match each other).
 #
-# socket_url's port is whatever PORT= is set to in the server's
-# Backend/remote_socket/.env - the code's built-in default (5001) is NOT
-# reliable, since deployments commonly override it (this one runs on 3002).
-# Confirm with: grep PORT Backend/remote_socket/.env on the server, or
-# `pm2 logs remote-socket --lines 5 --nostream` and read the
-# "Server listening on port ..." line.
+# socket_url must point at Backend/realtime (NOT Backend/remote_socket -
+# that service is unused by the current Frontend, despite implementing an
+# almost identical protocol; the agent will authenticate fine against it but
+# the admin UI will never show it as online). Confirm the real port with:
+# grep PORT Backend/realtime/.env on the server, or
+# `pm2 logs realtime --lines 5 --nostream` and read the startup line.
 
 python run_agent.py
 ```
@@ -110,7 +113,7 @@ the executable.
 |--------------------------------|---------------------------------------------------------------------------|
 | `auth_base_url`                | `desktop` service base URL (login)                                       |
 | `data_base_url`                | `store-logs-api` service base URL (activity/screenshots/recordings)      |
-| `socket_url`                   | `remote_socket` service WebSocket URL (`ws://...`, live Screen Cast)     |
+| `socket_url`                   | `Backend/realtime` service WebSocket URL (`ws://...`, live Screen Cast)  |
 | `crypto_password`              | Must match server's `CRYPTO_PASSWORD` exactly (32 ASCII characters)      |
 | `activity_interval_seconds`    | How often to batch-upload activity (default 180)                        |
 | `screenshot_interval_seconds`  | How often to capture a screenshot (default 300)                         |

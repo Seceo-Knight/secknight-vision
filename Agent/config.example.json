@@ -1,7 +1,7 @@
 {
   "auth_base_url": "http://YOUR_SERVER_IP:3004",
   "data_base_url": "http://YOUR_SERVER_IP:3001",
-  "socket_url": "ws://YOUR_SERVER_IP:3002",
+  "socket_url": "ws://YOUR_SERVER_IP:3006",
 
   "crypto_password": "PASTE_YOUR_SERVER_CRYPTO_PASSWORD_HERE",
 
