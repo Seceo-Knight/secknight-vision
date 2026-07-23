@@ -36,6 +36,7 @@ import traceback
 import mss
 import pyautogui
 import websocket
+from PIL import Image
 
 pyautogui.FAILSAFE = False
 
@@ -240,8 +241,15 @@ class RemoteControlClient:
 
 
 def _to_png_bytes(shot) -> bytes:
+    # mss.tools.to_png() on some installed versions only accepts a file path
+    # for `output` (it does `open(output, "wb")` internally) and raises
+    # TypeError on a BytesIO stream. Encode via Pillow instead - it's already
+    # a dependency (screenshot.py needs it indirectly too) and works fully
+    # in-memory, which is also faster for a 5fps live stream than round-
+    # tripping through a temp file per frame.
+    img = Image.frombytes("RGB", shot.size, shot.rgb)
     buf = io.BytesIO()
-    mss.tools.to_png(shot.rgb, shot.size, output=buf)
+    img.save(buf, format="PNG", compress_level=1)
     return buf.getvalue()
 
 
