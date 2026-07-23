@@ -72,6 +72,19 @@ class CheckScreensAgeService {
 
 				return;
 			}
+
+			if (storageType === 'LC') {
+				// No retention configured - don't delete anything (an unset/0
+				// period would otherwise mean "delete everything not from
+				// today", which is not what an admin who never touched this
+				// setting would expect for their own local disk).
+				if (!auto_delete_period) return;
+				// Flat filename-encoded-date layout, not a folder tree - doesn't
+				// fit the generic getMainFolderId/getUsersFolders/... walk below.
+				const deleted = await StorageUtils.deleteOldFiles(conection, ssLastDate);
+				console.log(`CRON_INFO: LC storage - deleted ${deleted} file(s) older than ${auto_delete_period} day(s) for org ${organization_id}`);
+				return;
+			}
 			const mainFolderId = await StorageUtils.getMainFolderId(
 				conection,
 				'EmpMonitor',

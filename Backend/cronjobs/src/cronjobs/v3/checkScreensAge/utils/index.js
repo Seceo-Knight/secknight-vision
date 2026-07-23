@@ -6,4 +6,5 @@ module.exports = {
     ZH: require('./zohoWorkDrive.utils'),
     SFTP: require('./sftp.utils'),
      WD: require('./webdav.utils'),
+    LC: require('./local.utils'),
 };

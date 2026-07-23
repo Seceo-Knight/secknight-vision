@@ -450,6 +450,9 @@ set_env .env CRYPTO_PASSWORD "${CRYPTO_PASSWORD}"
 set_env .env REDIS_HOST localhost
 # Not in sample.env at all — required or the cron scheduler throws at startup
 set_env .env REPORT_CRON "0 * * * *"
+# checkScreensAge cron's LC (local-disk) retention handler - must match
+# store-logs-api/admin's LOCAL_STORAGE_PATH exactly, same as those two.
+set_env .env LOCAL_STORAGE_PATH "${LOCAL_STORAGE_ABS_PATH}"
 popd >/dev/null
 deploy_service cronjobs cronjobs cronService.js
 
