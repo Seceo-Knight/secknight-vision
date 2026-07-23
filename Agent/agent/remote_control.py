@@ -118,7 +118,16 @@ class RemoteControlClient:
         if not token:
             return
 
+        # timeout=10 here only bounds the initial TCP/TLS handshake. The
+        # websocket-client library applies that same timeout to the
+        # underlying socket for its whole lifetime unless cleared - so
+        # without the settimeout(None) below, ws.recv() below would raise a
+        # spurious timeout after any 10s gap with no server messages (the
+        # server here is push-only: it stays silent between Screen Cast
+        # sessions), causing an endless connect/timeout/reconnect loop that
+        # made the dashboard flap between "online" and "offline".
         ws = websocket.create_connection(self.config.socket_url, timeout=10)
+        ws.settimeout(None)
         self._ws = ws
         ws.send(json.dumps({"type": "agent_auth", "token": token}))
 
