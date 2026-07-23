@@ -216,6 +216,7 @@ const handleAgentAuth = async (ws, wss, parsedMessage) => {
             await publishToChannel("channel-update-realtime-activity", JSON.stringify({ user_id: agentData.user_id, message: "agent_auth", organization_id: agentData.organization_id }));
             await publishToChannel("channel-auth", JSON.stringify({ user_id: agentData.user_id, message: "Agent Auth" }));
 
+            console.log(`[realtime] Agent authenticated successfully: ${agentData.user_id} (type ${typeof agentData.user_id}), org ${agentData.organization_id}`);
             return ws.send('Agent authenticated successfully');
         } else {
             return ws.close();
