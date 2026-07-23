@@ -1,6 +1,8 @@
 const moment = require('moment');
 const _ = require('underscore');
 const async = require('async');
+const fs = require('fs').promises;
+const path = require('path');
 const ScreenshotModel = require('./screenshot.model');
 const ScreenshotValidation = require('./screenshot.validation');
 const sendResponse = require('../../../utils/myService').sendResponse;
@@ -10,6 +12,77 @@ const CloudStorageService = require('./service/google-drive.service');
 const Comman = require('../../../utils/helpers/Common');
 const { genericErrorMessage } = require('../../../utils/helpers/LanguageTranslate');
 const { translate } = require('../../../utils/messageTranslation');
+
+// Local-disk ("LC") screenshot provider read-side. Mirrors the GD/S3 branches
+// below but lists files straight off disk instead of calling a cloud API.
+// LOCAL_STORAGE_PATH must point at the SAME directory store-logs-api's
+// LocalStorageUtils writes into (Backend/store-logs-api/.env's
+// LOCAL_STORAGE_PATH, e.g. /root/secknight-vision/Backend/store-logs-api/public/local-storage).
+// LOCAL_STORAGE_PUBLIC_URL is the public base URL nginx serves that same
+// directory under (see the /local-screenshots/ location block).
+async function getLocalScreenshots(user_data, date, total_hour) {
+    const root = process.env.LOCAL_STORAGE_PATH;
+    const publicUrl = (process.env.LOCAL_STORAGE_PUBLIC_URL || '').replace(/\/$/, '');
+    if (!root || !publicUrl) {
+        throw new Error('LOCAL_STORAGE_PATH / LOCAL_STORAGE_PUBLIC_URL not configured in admin .env');
+    }
+
+    const email = user_data[0].email;
+    const timezone = user_data[0].timezone;
+    const folderPath = path.join(root, 'EmpMonitor', email);
+
+    let filenames = [];
+    try {
+        filenames = await fs.readdir(folderPath);
+    } catch (err) {
+        if (err.code === 'ENOENT') filenames = []; // no screenshots yet for this user
+        else throw err;
+    }
+
+    // Filenames look like "HH-YYYY-MM-DD HH-mm-ss-sc0.png" (see
+    // Backend/store-logs-api/.../utils/file.utils.ts imageFileFilter).
+    // Only keep files whose embedded date matches the requested date.
+    const matching = filenames.filter((name) => {
+        const parts = name.split('-');
+        if (parts.length < 7) return false;
+        const fileDate = `${parts[1]}-${parts[2]}-${parts[3].split(' ')[0]}`;
+        return fileDate === date;
+    });
+
+    const result = [];
+    for (const h of total_hour) {
+        const hourFiles = matching.filter((name) => name.split('-')[0] === h);
+        const finalData = [];
+        for (const name of hourFiles) {
+            const link = `${publicUrl}/EmpMonitor/${encodeURIComponent(email)}/${encodeURIComponent(name)}`;
+            let stat;
+            try {
+                stat = await fs.stat(path.join(folderPath, name));
+            } catch {
+                stat = null;
+            }
+            finalData.push({
+                id: name,
+                actual: name,
+                timeslot: Comman.toTimezoneDateofSS_Timeslot(name, timezone),
+                name: Comman.toTimezoneDateofSS(name, timezone),
+                utc: Comman.toTimezoneDateofSSutc(name, timezone),
+                link,
+                viewLink: link,
+                thumbnailLink: link,
+                created_at: stat ? stat.birthtime : null,
+                updated_at: stat ? stat.mtime : null,
+            });
+        }
+        result.push({
+            t: moment.tz(moment(h, 'HH'), timezone).format('HH'),
+            actual_t: h,
+            s: finalData,
+            pageToken: null,
+        });
+    }
+    return result;
+}
 
 class ScreenshotController {
     async getScreenshootParallel_new(req, res) {
@@ -133,6 +206,14 @@ class ScreenshotController {
                     let r = _.sortBy(result, "t");
                     return sendResponse(res, 200, { storage: 'S3', name: user_data[0].name + ' ' + user_data[0].full_name, photo_path: user_data[0].photo_path, email: user_data[0].email, user_id: user_data[0].id, screenshot: r }, 'Screenshot data ', null);
                 })
+            } else if (credsData[0].short_code == 'LC') {
+                try {
+                    const r = await getLocalScreenshots(user_data, date, total_hour);
+                    return sendResponse(res, 200, { storage: 'LC', name: user_data[0].name + ' ' + user_data[0].full_name, photo_path: user_data[0].photo_path, email: user_data[0].email, user_id: user_data[0].id, screenshot: r }, 'Screenshot data ', null);
+                } catch (err) {
+                    Logger.error(`---v3-error-----${err}------${__filename}----`);
+                    return sendResponse(res, 400, null, 'Unable to get screenshots.', err.message);
+                }
             } else {
                 return sendResponse(res, 400, null, 'Active cloud storage not found.', null);
             }
