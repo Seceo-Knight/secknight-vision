@@ -173,7 +173,23 @@ export const saveFiles = async (
     for (const file of files) {
         file.filename = `${projectId}-${taskId}-${file.originalname}`;
         file.filepath = join(folderPath, file.filename);
-        await fs.writeFile(file.filepath, file.buffer);
+
+        // Multer is configured for DISK storage here (desktop.module.ts's
+        // MulterModule.register({ dest: SS_UPLOAD_PATH })), so incoming files
+        // arrive as a temp file on disk (file.path) - file.buffer is never
+        // populated in that mode. Copy from the real temp file and clean it
+        // up; fall back to file.buffer only if some caller ever switches to
+        // memory storage.
+        if (file.path) {
+            await fs.copyFile(file.path, file.filepath);
+            await fs.unlink(file.path).catch(() => { });
+        } else if (file.buffer) {
+            await fs.writeFile(file.filepath, file.buffer);
+        } else {
+            throw new Error(
+                `No source data for uploaded file ${file.originalname} (neither disk path nor buffer present)`,
+            );
+        }
         delete file.buffer;
     }
 };
