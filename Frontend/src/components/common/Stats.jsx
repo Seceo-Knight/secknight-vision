@@ -175,6 +175,7 @@ export default function Stats({ stats, timezone = "Asia/Kolkata" }) {
         title={modalTitle}
         employees={modalEmployees}
         loading={modalLoading}
+        statusType={modalType}
       />
     </>
   );

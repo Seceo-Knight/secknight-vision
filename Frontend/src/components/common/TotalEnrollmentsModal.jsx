@@ -41,13 +41,28 @@ const getEmployeeDepartment = (emp) =>
 const getEmployeeLocation = (emp) =>
   emp?.location ?? emp?.location_name ?? emp?.loc_name ?? emp?.locName ?? "-";
 
+// Maps Stats.jsx's getStatType() bucket codes to a status dot color/label.
+// 1=Active, 2=Idle, 3=Absent, 4=Suspended, 5=Registered, 6=Offline
+const STATUS_STYLES = {
+  1: { color: "bg-emerald-500", label: "Active" },
+  2: { color: "bg-amber-400", label: "Idle" },
+  3: { color: "bg-red-500", label: "Absent" },
+  4: { color: "bg-red-400", label: "Suspended" },
+  5: { color: "bg-blue-400", label: "Registered" },
+  6: { color: "bg-slate-400", label: "Offline" },
+};
+const getStatusStyle = (statusType) =>
+  STATUS_STYLES[statusType] || { color: "bg-slate-300", label: "-" };
+
 export default function TotalEnrollmentsModal({
   isOpen,
   onClose,
   title = "Employees",
   employees = [],
   loading = false,
+  statusType = null,
 }) {
+  const statusStyle = getStatusStyle(statusType);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
@@ -374,7 +389,8 @@ export default function TotalEnrollmentsModal({
                       <div className="flex items-center gap-4">
                         <span className="text-gray-200 select-none">|</span>
                         <div
-                          className="w-4 h-4 rounded-full bg-slate-300 shadow-sm border border-black/5 shrink-0"
+                          className={`w-4 h-4 rounded-full ${statusStyle.color} shadow-sm border border-black/5 shrink-0`}
+                          title={statusStyle.label}
                         />
                       </div>
                     </TableCell>
