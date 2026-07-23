@@ -11,24 +11,20 @@ let organizationActive = {};
 
 
 const handleAgentAuth = async (ws, wss, parsedMessage) => {
-    console.log(`[DIAG] handleAgentAuth invoked`);
     try {
         const agentData = await agentValidation(ws, wss, parsedMessage);
-        console.log(`[DIAG] handleAgentAuth: agentValidation returned ${agentData ? ('data for user_id=' + agentData.user_id) : 'false/falsy'}`);
         if (agentData) {
             connectedAgents[agentData.user_id] = ws;
             ws.user_id = agentData.user_id;
 
             const allowedUsers = configFile.SCREEN_CAST_FOR_SPECIFIC_USERS[ws.organization_id];
             if (allowedUsers && !allowedUsers.includes(agentData.user_id)) {
-                console.log(`[DIAG] handleAgentAuth: blocked by SCREEN_CAST_FOR_SPECIFIC_USERS allowlist for org ${ws.organization_id}`);
                 return ws.close();
             }
 
             console.log(`Agent connected successfully: ${ws.user_id}`);
             return ws.send('Agent authenticated successfully');
         } else {
-            console.log(`[DIAG] handleAgentAuth: closing connection, agentValidation failed`);
             return ws.close();
         }
     } catch (error) {

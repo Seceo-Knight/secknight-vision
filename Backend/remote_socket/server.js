@@ -22,7 +22,7 @@ app.get('/', (req, res) => {
 wss.on('connection', (ws, req) => {
     let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     ip = ip.replace(",35.201.73.5", "")
-    console.log(`[DIAG] Raw WS connection received from: ${ip}`);
+    // console.log(`User connected: ${ip}`);
     
     ws.on('message', (message) => onMessageHandler(ws, wss, message));
     ws.on('close', () => onCloseHandler(ws));

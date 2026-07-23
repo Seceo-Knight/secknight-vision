@@ -4,7 +4,10 @@ Loads config.json sitting next to the running executable/script.
 config.json fields:
   auth_base_url        e.g. "http://192.168.1.68:3004"   (desktop service - login)
   data_base_url        e.g. "http://192.168.1.68:3001"   (store-logs-api - activity/screenshots)
-  socket_url           e.g. "ws://192.168.1.68:5001"     (remote_socket - live screen cast)
+  socket_url           e.g. "ws://192.168.1.68:3002"     (remote_socket - live screen cast -
+                       NOTE: not always the code's built-in default of 5001; check this
+                       deployment's Backend/remote_socket/.env for a PORT= override, e.g.
+                       `grep PORT Backend/remote_socket/.env` on the server)
   crypto_password      must byte-for-byte match CRYPTO_PASSWORD in the
                         server's Backend/desktop/.env and
                         Backend/store-logs-api/.env (32 ASCII chars)

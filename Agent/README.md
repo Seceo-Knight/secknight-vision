@@ -75,6 +75,13 @@ copy config.example.json config.json
 # server's address/ports, and crypto_password to match EXACTLY the
 # CRYPTO_PASSWORD value in your server's Backend/desktop/.env and
 # Backend/store-logs-api/.env (both must already match each other).
+#
+# socket_url's port is whatever PORT= is set to in the server's
+# Backend/remote_socket/.env - the code's built-in default (5001) is NOT
+# reliable, since deployments commonly override it (this one runs on 3002).
+# Confirm with: grep PORT Backend/remote_socket/.env on the server, or
+# `pm2 logs remote-socket --lines 5 --nostream` and read the
+# "Server listening on port ..." line.
 
 python run_agent.py
 ```
