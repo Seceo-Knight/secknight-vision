@@ -20,7 +20,10 @@ compatibility shim — read directly from the backend source:
 
 ## Features
 
-- Login popup + system tray icon with live status
+- Login popup + system tray icon with live status. Login is remembered
+  across restarts (saved to `session.json` next to `config.json`) - you
+  only see the popup again once the saved session actually expires or is
+  rejected by the server. Delete `session.json` to force a fresh login.
 - Activity tracking: keystrokes, clicks, mouse movement, per-app/window
   usage — batched and uploaded every `activity_interval_seconds`
 - Idle/away detection (no input for `idle_threshold_seconds` gets reported

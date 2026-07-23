@@ -17,6 +17,9 @@ Auth header on every authenticated call: "Authorization: Bearer <accessToken>"
 a single space and takes the second token).
 """
 
+import json
+import os
+
 import requests
 
 from . import crypto_utils
@@ -27,6 +30,13 @@ class ApiError(Exception):
         super().__init__(message)
         self.status_code = status_code
 
+    @property
+    def is_auth_error(self) -> bool:
+        # store-logs-api's auth middleware throws NestJS ForbiddenException
+        # (403) for an invalid/expired token; treat 401 as auth failure too
+        # in case any endpoint uses that instead.
+        return self.status_code in (401, 403)
+
 
 class ApiClient:
     def __init__(self, config):
@@ -35,6 +45,47 @@ class ApiClient:
         self.settings = None
         self.room_id = None
         self.employee_name = None
+
+    # --------------------------------------------------------------- session
+    # Persists just the accessToken (+ a couple of display fields) to a local
+    # file so the agent doesn't need to re-prompt for the employee's email
+    # and password on every restart - only when the token actually expires
+    # or is otherwise rejected. Never persists the password itself.
+    def save_session(self, path: str):
+        try:
+            with open(path, "w") as f:
+                json.dump(
+                    {
+                        "access_token": self.access_token,
+                        "employee_name": self.employee_name,
+                        "room_id": self.room_id,
+                    },
+                    f,
+                )
+        except OSError:
+            pass
+
+    def load_session(self, path: str) -> bool:
+        if not os.path.exists(path):
+            return False
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return False
+        if not data.get("access_token"):
+            return False
+        self.access_token = data["access_token"]
+        self.employee_name = data.get("employee_name")
+        self.room_id = data.get("room_id")
+        return True
+
+    def clear_session(self, path: str):
+        self.access_token = None
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
     # ------------------------------------------------------------------ auth
     def login(self, email: str, password: str, mac_id: str = None) -> dict:

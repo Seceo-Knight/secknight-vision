@@ -1,6 +1,9 @@
 # Real config with your server's secrets - never commit this
 config.json
 
+# Saved login session (accessToken) - never commit this either
+session.json
+
 # Python
 __pycache__/
 *.pyc

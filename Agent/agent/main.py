@@ -4,6 +4,7 @@ activity tracker -> periodic activity/screenshot upload -> remote control
 websocket client. Runs until the tray "Quit" item is used.
 """
 
+import os
 import platform
 import sys
 import threading
@@ -33,9 +34,20 @@ class Agent:
         self._running = False
         self._screenshot_thread = None
         self._screen_record_thread = None
+        self._needs_relogin = False
+        # Lives next to config.json, not inside it, so it's easy to delete
+        # by hand to force a fresh login without touching server settings.
+        self.session_path = os.path.join(os.path.dirname(self.config.path), "session.json")
 
     # --------------------------------------------------------------- login
-    def login(self):
+    def login(self, force_prompt: bool = False):
+        # Reuse a saved accessToken across restarts instead of re-prompting
+        # for email/password every time - only re-prompt if there's no
+        # saved session, or the caller explicitly needs a fresh one (e.g.
+        # the saved token was rejected by the server as expired/invalid).
+        if not force_prompt and self.client.load_session(self.session_path):
+            return
+
         error = None
         while True:
             credentials = prompt_login(error_message=error)
@@ -44,6 +56,7 @@ class Agent:
             email, password = credentials
             try:
                 self.client.login(email, password, mac_id=_get_mac_id())
+                self.client.save_session(self.session_path)
                 return
             except ApiError as exc:
                 error = str(exc)
@@ -54,8 +67,13 @@ class Agent:
         try:
             self.client.send_activity(sign, [item])
             self.tray.set_status(f"Active — last sync {time.strftime('%H:%M:%S')}")
-        except ApiError:
-            self.tray.set_status("Sync failed — will retry")
+        except ApiError as exc:
+            if exc.is_auth_error:
+                self.client.clear_session(self.session_path)
+                self._needs_relogin = True
+                self.tray.set_status("Session expired — signing in again")
+            else:
+                self.tray.set_status("Sync failed — will retry")
 
     # ----------------------------------------------------------- screenshots
     def _screenshot_loop(self):
@@ -68,6 +86,10 @@ class Agent:
             try:
                 paths = screenshot_mod.capture_all_screens()
                 self.client.upload_screenshots(paths)
+            except ApiError as exc:
+                if exc.is_auth_error:
+                    self.client.clear_session(self.session_path)
+                    self._needs_relogin = True
             except Exception:
                 pass
             finally:
@@ -86,6 +108,10 @@ class Agent:
             try:
                 path = screen_record_mod.record_screen(duration, fps=fps)
                 self.client.upload_screen_record(path)
+            except ApiError as exc:
+                if exc.is_auth_error:
+                    self.client.clear_session(self.session_path)
+                    self._needs_relogin = True
             except Exception:
                 pass
             finally:
@@ -113,6 +139,15 @@ class Agent:
 
         try:
             while self._running:
+                if self._needs_relogin:
+                    # Runs on the main thread deliberately - tkinter (used
+                    # by the login popup) isn't safe to drive from the
+                    # background tracker/screenshot threads that detect an
+                    # expired session.
+                    self._needs_relogin = False
+                    self.tray.set_status("Session expired — please sign in again")
+                    self.login(force_prompt=True)
+                    self.tray.set_status("Active")
                 time.sleep(1)
         except KeyboardInterrupt:
             self._quit()
