@@ -48,15 +48,15 @@ compatibility shim — read directly from the backend source:
   History will show blank URLs) — browser URL extraction needs
   browser-specific accessibility APIs, left for a follow-up.
 - Screen recording (`screen_record_enabled`) captures and uploads
-  `.mp4` files, but the backend's `ScreenRecordService` currently only
-  accepts uploads for organizations with a cloud storage provider
-  configured (Google Drive/S3/FTP/etc. — see
-  `Backend/store-logs-api/.../screen-record.service.ts`). There's no
-  local-storage ("LC") branch for screen records yet, unlike
-  screenshots (that LC work is tracked separately, still in progress
-  server-side), so recordings will fail to upload with a 400 until
-  either a real provider is configured or that LC branch is added. Left
-  disabled by default for this reason.
+  `.mp4` files. The backend's `ScreenRecordService` uploads to whichever
+  storage provider is configured for the organization — a real cloud
+  provider (Google Drive/S3/FTP/etc.) or the local-disk provider (short
+  code `LC`, see `Backend/store-logs-api/.../utils/local-storage.utils.ts`),
+  which works the same way it does for screenshots. Left disabled by
+  default because continuous video capture is more resource-intensive
+  than screenshots, not because of a missing backend feature — enable it
+  once a storage provider (LC or otherwise) is confirmed configured for
+  the org.
 - The Key Strokes tab needs no separate agent/backend work: it's read
   from the same `employee_activities` Mongo collection that the
   Productivity/App/Web History tabs already use (populated by

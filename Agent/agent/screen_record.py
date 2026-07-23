@@ -6,15 +6,16 @@ start time). Server-side hard cap is 300 seconds
 (Backend/store-logs-api/.../constants.ts videoConditions.maxDuration) -
 record_screen() refuses to exceed that.
 
-Note: even once uploaded, the backend's ScreenRecordService currently only
-accepts the file if the organization has a supported cloud storage provider
-configured (Google Drive/S3/FTP/etc.) - see screen-record.service.ts's
-`providers` Map. There is no local-storage ("LC") branch for screen records
-yet (only screenshots have one, still in progress server-side), so uploads
-will get a 400 "provider is not supported" / "cloud provider name is not
-setup" response until that's added. This module still captures + attempts
-the upload so it starts working the moment that's fixed, and so the failure
-is visible/logged rather than silently never-attempted.
+Note: the backend's ScreenRecordService uploads to whichever storage
+provider is configured for the organization (Google Drive/S3/FTP/etc., or
+the local-disk provider - see screen-record.service.ts's `providers` Map
+and utils/local-storage.utils.ts's LocalStorageUtils, short code "LC"). The
+local-disk provider works for both screenshots and screen recordings, so no
+external cloud provider is required as long as the org's storage provider
+is set to LC in the DB. Off by default in config.json
+(screen_record_enabled) since continuous video capture is more resource-
+intensive than screenshots - enable explicitly once you've confirmed a
+storage provider is configured.
 """
 
 import os
