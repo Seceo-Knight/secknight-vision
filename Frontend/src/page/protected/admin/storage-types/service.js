@@ -108,6 +108,11 @@ export const STORAGE_FIELD_CONFIG = {
     { key: "password",           label: "Password",                     type: "password" },
     { key: "auto_delete_period", label: "Delete Data Older Than (Days)", type: "text" },
   ],
+  // No credentials needed at all - files are written directly to this
+  // server's own disk instead of a third-party cloud provider.
+  local_storage: [
+    { key: "auto_delete_period", label: "Delete Data Older Than (Days)", type: "text" },
+  ],
 };
 
 export const STORAGE_OPTIONS = [
@@ -120,6 +125,7 @@ export const STORAGE_OPTIONS = [
   { label: "FTP Integration", value: "ftp" },
   { label: "SFTP Integration", value: "sftp" },
   { label: "WebDav", value: "webdav" },
+  { label: "Local Storage", value: "local_storage" },
 ];
 
 /**

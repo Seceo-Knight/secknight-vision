@@ -369,6 +369,32 @@ class StorageController {
                 }
 
             }
+            else if (get_type[0].short_code == 'LC') {
+                // Local disk storage - unlike every other provider here, this
+                // needs no external credentials at all (no keys/tokens/passwords),
+                // so there's nothing to validate or check connectivity for. Store
+                // an empty JSON blob purely so the read side
+                // (getStorageTypeWithData) has something parseable, matching the
+                // shape every other branch relies on.
+                const storage_creds = JSON.stringify({});
+                const add_storage_creds_lc = await StorageModel.addStorageCreds(org_provided_id, storage_creds, organization_id, user_id, auto_delete_period, null, note);
+                if (add_storage_creds_lc) {
+                    if (add_storage_creds_lc.affectedRows > 0) {
+                        let storage_data = req.body;
+                        storage_data.storage_data_id = add_storage_creds_lc.insertId;
+                        storage_data.status = 0;
+                        storage_data.storage_type = 'Local Storage';
+                        storage_data.auto_delete_period = auto_delete_period;
+                        actionsTracker(req, 'Storage %i data created.', [storage_data.storage_data_id]);
+                        message = getStorageMessage(language, "34", auto_delete_period);
+                        return sendResponse(res, 200, storage_data, message, null);
+                    } else {
+                        return sendResponse(res, 400, null, storageMessages.find(x => x.id === "9")[language] || storageMessages.find(x => x.id === "9")["en"], null);
+                    }
+                } else {
+                    return sendResponse(res, 400, null, storageMessages.find(x => x.id === "10")[language] || storageMessages.find(x => x.id === "10")["en"], null);
+                }
+            }
             else {
                 return sendResponse(res, 400, null, storageMessages.find(x => x.id === "11")[language] || storageMessages.find(x => x.id === "11")["en"], null);
             }
@@ -701,6 +727,33 @@ class StorageController {
                             client_id: null,
                             client_secret: null,
                             bucket_name: null,
+                        })
+
+                    } else if (creds_list.short_code == 'LC') {
+                        // Local disk storage - no credentials of any kind, so
+                        // every provider-specific field below is null on
+                        // purpose. Included so this row shows up in the table
+                        // at all (rows with an unmatched short_code here are
+                        // silently skipped, not an error).
+                        creds.push({
+                            note: creds_list?.note,
+                            is_expired: creds_list?.is_expired,
+                            storage_type_id: creds_list.storage_type_id,
+                            name: creds_list.name,
+                            storage_data_id: creds_list.storage_data_id,
+                            status: creds_list.status,
+                            auto_delete_period: creds_list.auto_delete_period,
+                            reseller: false,
+                            refresh_token: null, client_id: null, client_secret: null,
+                            bucket_name: null, username: null, password: null, port: null,
+                            host: null, ftp_path: null, region: null, admin_email: null,
+                            token: null, zoho_client_id: null, zoho_client_secret: null,
+                            zoho_refresh_token: null, domain: null, team_id: null,
+                            onedrive_client_id: null, onedrive_client_secret: null,
+                            onedrive_redirect_url: null, onedrive_refresh_token: null,
+                            access_token: null, app_key: null, app_secret: null,
+                            redirect_uri: null, api_endpoint: null, baseUrl: null,
+                            webdav_path: null, tenantId: null,
                         })
 
                     }
