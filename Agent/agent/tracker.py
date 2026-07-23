@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 from pynput import mouse, keyboard
 
-from .window_info import get_active_window
+from .window_info import get_active_window, get_browser_url
 
 
 class ActivityTracker:
@@ -45,6 +45,7 @@ class ActivityTracker:
 
         self._current_app = None
         self._current_title = None
+        self._current_url = None
         self._segment_start_sec = 0
         self._segment_keystrokes = []
 
@@ -138,11 +139,16 @@ class ActivityTracker:
         self._fake_activities.append(0)
         self._segment_keystrokes.extend(key_chars)
 
-        app_name, title = get_active_window()
+        app_name, title, hwnd = get_active_window()
         if app_name != self._current_app or title != self._current_title:
             self._close_segment(end_sec=self._second_index)
             self._current_app = app_name
             self._current_title = title
+            # Only hit UI Automation (relatively expensive) on an actual
+            # window/tab change, not every single tick - reuses the hwnd
+            # already captured this tick instead of a second foreground-
+            # window lookup.
+            self._current_url = get_browser_url(app_name, hwnd)
             self._segment_start_sec = self._second_index
             self._segment_keystrokes = list(key_chars)
 
@@ -159,7 +165,7 @@ class ActivityTracker:
                 "ageOfData": -1,
                 "app": self._current_app or "Unknown",
                 "title": self._current_title or "",
-                "url": None,
+                "url": self._current_url,
                 "start": self._segment_start_sec,
                 "end": max(end_sec, self._segment_start_sec),
                 "keystrokes": "".join(self._segment_keystrokes),
@@ -214,6 +220,7 @@ class ActivityTracker:
         # batch doesn't start with a gap
         self._current_app = None
         self._current_title = None
+        self._current_url = None
 
         try:
             self.on_batch_ready(item)

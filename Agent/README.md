@@ -44,9 +44,13 @@ compatibility shim — read directly from the backend source:
 - Windows-only for window tracking and remote control (uses `pywin32`).
   Activity/screenshot/login features are cross-platform capable but
   untested on macOS/Linux.
-- `url` is not populated for browser tabs yet (App History works, Web
-  History will show blank URLs) — browser URL extraction needs
-  browser-specific accessibility APIs, left for a follow-up.
+- Web History (current-tab URL) is Windows-only, and only for Chromium
+  browsers (Chrome/Edge/Brave/Vivaldi/Opera) and Firefox — read directly
+  from the address bar via Windows UI Automation (`uiautomation` package,
+  see `agent/window_info.py`'s `get_browser_url()`), no browser extension
+  needed. Best-effort: if the address bar control can't be located (theme
+  differences, fullscreen mode, an unsupported/exotic browser), that
+  segment just has no `url`, same as before — App History still works.
 - Screen recording (`screen_record_enabled`) captures and uploads
   `.mp4` files. The backend's `ScreenRecordService` uploads to whichever
   storage provider is configured for the organization — a real cloud
