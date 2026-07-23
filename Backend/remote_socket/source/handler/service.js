@@ -22,7 +22,7 @@ const handleAgentAuth = async (ws, wss, parsedMessage) => {
                 return ws.close();
             }
 
-            console.log(`Agent connected successfully: ${ws.user_id}`);
+            console.log(`Agent connected successfully: ${ws.user_id} (type ${typeof ws.user_id})`);
             return ws.send('Agent authenticated successfully');
         } else {
             return ws.close();
@@ -124,6 +124,10 @@ const checkAgentOnlineStatus = (ws, wss, parsedMessage) => {
     if (!requestedUserId) return ws.send('Invalid requested_user_id');
 
     const agentWs = connectedAgents[requestedUserId];
+    console.log(
+        `[checkAgentOnlineStatus] requested_user_id=${requestedUserId} (type ${typeof requestedUserId}), ` +
+        `found=${!!agentWs}, currently connected keys=${JSON.stringify(Object.keys(connectedAgents))}`
+    );
     if (agentWs) {
         ws.send('Agent is online -- Agent Status');
     } else {
