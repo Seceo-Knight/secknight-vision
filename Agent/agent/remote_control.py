@@ -31,6 +31,7 @@ import platform
 import subprocess
 import threading
 import time
+import traceback
 
 import mss
 import pyautogui
@@ -89,7 +90,14 @@ class RemoteControlClient:
 
     def start(self):
         if not self.config.remote_control_enabled or not getattr(self.config, "socket_url", None):
+            print(
+                "[remote_control] NOT starting - remote_control_enabled="
+                f"{self.config.remote_control_enabled!r}, "
+                f"socket_url={getattr(self.config, 'socket_url', None)!r}. "
+                "Check config.json if this looks wrong."
+            )
             return
+        print(f"[remote_control] starting, will connect to {self.config.socket_url}")
         self._running = True
         self._thread = threading.Thread(target=self._run_forever, daemon=True)
         self._thread.start()
@@ -108,15 +116,18 @@ class RemoteControlClient:
         while self._running:
             try:
                 self._connect_and_listen()
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[remote_control] connection attempt failed: {exc!r}")
+                traceback.print_exc()
             if self._running:
                 time.sleep(10)  # reconnect backoff
 
     def _connect_and_listen(self):
         token = self.get_access_token()
         if not token:
+            print("[remote_control] no access token yet - not logged in, skipping this attempt")
             return
+        print(f"[remote_control] connecting to {self.config.socket_url} ...")
 
         # timeout=10 here only bounds the initial TCP/TLS handshake. The
         # websocket-client library applies that same timeout to the
@@ -130,13 +141,16 @@ class RemoteControlClient:
         ws.settimeout(None)
         self._ws = ws
         ws.send(json.dumps({"type": "agent_auth", "token": token}))
+        print("[remote_control] connected and sent agent_auth, waiting for messages")
 
         while self._running:
             try:
                 message = ws.recv()
-            except Exception:
+            except Exception as exc:
+                print(f"[remote_control] recv() failed, reconnecting: {exc!r}")
                 break
             if not message:
+                print("[remote_control] server closed the connection (empty recv), reconnecting")
                 break
             self._handle_message(message)
 
@@ -190,8 +204,10 @@ class RemoteControlClient:
                 action = CUSTOM_BUTTON_ACTIONS.get(data)
                 if action:
                     action()
-        except Exception:
-            pass
+                else:
+                    print(f"[remote_control] unknown custom button: {data!r}")
+        except Exception as exc:
+            print(f"[remote_control] control action {event!r} failed: {exc!r}")
 
     def _start_streaming(self):
         if self._streaming:
