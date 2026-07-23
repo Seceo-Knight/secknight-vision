@@ -1103,6 +1103,29 @@ class StorageController {
 
                 }
 
+                else if (get_storage_type_data[0].short_code == 'LC') {
+                    // Local disk storage - same as the add-side branch above, no
+                    // external credentials to validate or refresh, so this is
+                    // just an auto_delete_period/note update. Without this
+                    // branch, editing an existing Local Storage entry (e.g. to
+                    // set the retention period after it was already created)
+                    // fell through to the generic "unsupported storage type"
+                    // error below and silently never saved.
+                    const storage_LC_creds = JSON.stringify({});
+                    const update_LC = await StorageModel.updateStorageData(storage_data_id, storage_LC_creds, auto_delete_period, note);
+                    if (update_LC) {
+                        if (update_LC.affectedRows > 0) {
+                            actionsTracker(req, 'Storage %i data updated.', [storage_data_id]);
+                            message = getStorageMessage(language, "33", auto_delete_period);
+                            return sendResponse(res, 200, req.body, message, null);
+                        } else {
+                            return sendResponse(res, 400, null, storageMessages.find(x => x.id === "25")[language] || storageMessages.find(x => x.id === "25")["en"], null);
+                        }
+                    } else {
+                        return sendResponse(res, 400, null, storageMessages.find(x => x.id === "26")[language] || storageMessages.find(x => x.id === "26")["en"], null);
+                    }
+                }
+
                 else {
                     return sendResponse(res, 400, null, storageMessages.find(x => x.id === "27")[language] || storageMessages.find(x => x.id === "27")["en"], null);
                 }
