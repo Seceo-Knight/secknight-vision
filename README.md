@@ -571,20 +571,11 @@ Connect with Us</b>
 </p>
 
 <p align="center">
-  <a href="https://x.com/SecKnight Vision" target="_blank">
-    <img alt="SecKnight Vision on X" src="https://img.shields.io/badge/SecKnight Vision-000000?style=for-the-badge&logo=x&logoColor=white" />
-  </a>
   <a href="https://github.com/EmpCloud/" target="_blank">
     <img alt="SecKnight Vision on GitHub" src="https://img.shields.io/badge/GitHub-222222?style=for-the-badge&logo=github&logoColor=white" />
   </a>
-  <a href="https://www.instagram.com/emp_monitor/" target="_blank">
-    <img alt="SecKnight Vision on Instagram" src="https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white" />
-  </a>
-  <a href="https://www.facebook.com/empmonitorglobal/" target="_blank">
-    <img alt="SecKnight Vision on Facebook" src="https://img.shields.io/badge/Facebook-1877F2?style=for-the-badge&logo=facebook&logoColor=white" />
-  </a>
-  <a href="https://www.linkedin.com/company/empmonitor/" target="_blank">
-    <img alt="SecKnight Vision on LinkedIn" src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" />
+  <a href="https://www.linkedin.com/in/vaibhav-handekar-b5668925a/" target="_blank">
+    <img alt="Vaibhav Handekar on LinkedIn" src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" />
   </a>
 </p>
 
