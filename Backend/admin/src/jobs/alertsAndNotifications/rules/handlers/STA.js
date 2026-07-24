@@ -49,7 +49,7 @@ class AlertHandler extends common.AlertHandlerBase {
     }
     async getSubject() {
         const { appOrDomainCondition, timeCondition } = this.conditions();
-        const { language } = this.getOrganization();
+        const { language } = await this.getOrganization();
         const cmp = (timeCondition.cmp_operator === '>' || timeCondition.cmp_operator === '>=') ? 'more' : 'less';
         const type = appOrDomainCondition.type === 'APP' ? 'application' : 'web page';
         const period = await this.getPeriod(timeCondition);
