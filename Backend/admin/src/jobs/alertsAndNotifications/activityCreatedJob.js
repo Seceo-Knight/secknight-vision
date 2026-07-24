@@ -76,7 +76,16 @@ const calcAttendance = async (activity, key, compact = false) => {
                     isNew: false, duration: +attendance.duration + duration, end: +end / 1000,
                     lastId: activity._id, prevDuration: attendance.duration,
                     activeSeconds, prevActiveSeconds: attendance.activeSeconds, baseActiveSeconds: attendance.activeSeconds,
-                    idleSeconds: duration - activeSeconds, appTotalSeconds: duration, appActiveSeconds: activeSeconds
+                    // Was `duration - activeSeconds` - this OVERWRITES idleSeconds with just
+                    // this single batch's own idle contribution instead of accumulating it,
+                    // like `duration`/`activeSeconds` correctly do above. Since a new Mongo
+                    // activity document arrives roughly every activity_interval_seconds (agent
+                    // default 180s = 3 min), a single document's idle time can never exceed
+                    // ~180s - meaning any IDL alert condition of 3+ minutes could NEVER fire,
+                    // no matter how long someone was actually idle, because the running total
+                    // reset to near-zero on every new batch instead of accumulating for the day.
+                    idleSeconds: (attendance.idleSeconds || 0) + (duration - activeSeconds),
+                    appTotalSeconds: duration, appActiveSeconds: activeSeconds
                 });
             }
         } else {
