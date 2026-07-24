@@ -26,6 +26,13 @@ config.json fields:
   screen_record_interval_seconds how often to start a new recording (default 600)
   screen_record_duration_seconds length of each recording, server hard-caps at 300 (default 60)
   screen_record_fps              capture frame rate (default 4)
+  usb_detection_enabled          log USB drive connect/disconnect events - feeds the admin
+                                  Frontend's DLP > USB Detection tab (default true)
+  clipboard_monitoring_enabled   log clipboard copy events (text only) - feeds the admin
+                                  Frontend's DLP > Clipboard Logs tab (default true - this is
+                                  the most privacy-sensitive of the DLP features since it can
+                                  capture anything a user copies, consider disabling per your
+                                  org's data-handling policy if that's a concern)
 """
 
 import json
@@ -49,6 +56,8 @@ DEFAULTS = {
     "screenshots_enabled": True,
     "idle_detection_enabled": True,
     "remote_control_enabled": True,
+    "usb_detection_enabled": True,
+    "clipboard_monitoring_enabled": True,
     "screen_record_enabled": False,
     "screen_record_interval_seconds": 600,
     "screen_record_duration_seconds": 60,

@@ -12,6 +12,11 @@ current (non-legacy) API contract read directly from the backend source:
   POST {data_base_url}/api/v1/desktop/upload-screen-records (multipart, field "screenRecords")
       Backend/store-logs-api/.../desktop.controller.ts + dto/screenshot.dto.ts / screen-record.dto.ts
 
+  POST {data_base_url}/api/v1/desktop/add-system-log
+      Backend/store-logs-api/.../desktop.controller.ts + dto/system-logs.dto.ts
+      Feeds the admin Frontend's DLP tabs (USB Detection, Clipboard Logs) -
+      see agent/system_logs.py for the event-type codes.
+
 Auth header on every authenticated call: "Authorization: Bearer <accessToken>"
 (Backend/store-logs-api/src/modules/v1/auth/auth.middleware.ts splits on
 a single space and takes the second token).
@@ -127,6 +132,19 @@ class ApiClient:
         payload = resp.json() if resp.content else {}
         if resp.status_code != 200:
             raise ApiError(payload.get("message", f"Activity upload failed (HTTP {resp.status_code})"), resp.status_code)
+        return payload
+
+    # ------------------------------------------------------------ system logs
+    def send_system_events(self, events: list) -> dict:
+        resp = requests.post(
+            f"{self.config.data_base_url}/api/v1/desktop/add-system-log",
+            json={"events": events},
+            headers=self._auth_headers(),
+            timeout=30,
+        )
+        payload = resp.json() if resp.content else {}
+        if resp.status_code != 200:
+            raise ApiError(payload.get("message", f"System log upload failed (HTTP {resp.status_code})"), resp.status_code)
         return payload
 
     # ------------------------------------------------------------ screenshots

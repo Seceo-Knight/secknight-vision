@@ -14,6 +14,7 @@ compatibility shim — read directly from the backend source:
   (`Backend/store-logs-api/src/modules/v1/desktop/`)
 - Screenshots: `POST {data_base_url}/api/v1/desktop/upload-screenshots`
 - Screen recordings: `POST {data_base_url}/api/v1/desktop/upload-screen-records`
+- USB/clipboard (DLP) events: `POST {data_base_url}/api/v1/desktop/add-system-log`
 - Live Screen Cast + remote control: WebSocket to `Backend/realtime`
   (NOT `Backend/remote_socket` - that's a separate, unused-by-the-Frontend
   service implementing a near-identical protocol on its own port; confirmed
@@ -36,7 +37,12 @@ compatibility shim — read directly from the backend source:
   Employee Profile > Screen Cast tab when an admin clicks Connect
 - Remote control: mouse, keyboard, and the shortcut buttons (Windows key,
   File Explorer, Run, Copy, Paste, Lock, Restart, Shutdown)
-
+- USB detection: logs drive connect/disconnect events (Windows only, via
+  WMI) to the admin Frontend's DLP > USB Detection tab
+- Clipboard monitoring: logs clipboard copy events, text only, capped at
+  2000 characters per event (Windows only) to DLP > Clipboard Logs — the
+  most privacy-sensitive feature here, see `clipboard_monitoring_enabled`
+  in the config reference below before enabling for a real org
 - Periodic screen recordings (off by default — see limitation below)
 
 ## Known limitations (v1)
@@ -61,6 +67,13 @@ compatibility shim — read directly from the backend source:
   than screenshots, not because of a missing backend feature — enable it
   once a storage provider (LC or otherwise) is confirmed configured for
   the org.
+- USB Detection and Clipboard Logs (DLP tabs) are Windows-only. USB
+  detection only covers connect/disconnect events (drive letter
+  arrival/removal via WMI) - it does not enumerate individual file
+  transfers, and there's no blocking/prevention capability (that would
+  need a filter driver). Clipboard monitoring only captures plain text
+  (not copied files/images), and only detects a change happened - not
+  which application the copy came from.
 - The Key Strokes tab needs no separate agent/backend work: it's read
   from the same `employee_activities` Mongo collection that the
   Productivity/App/Web History tabs already use (populated by
@@ -125,6 +138,8 @@ the executable.
 | `screenshots_enabled`          | Toggle screenshot capture on/off                                        |
 | `idle_detection_enabled`       | Toggle idle detection on/off                                            |
 | `remote_control_enabled`       | Toggle live Screen Cast + remote control on/off                         |
+| `usb_detection_enabled`        | Toggle USB drive connect/disconnect logging on/off (default true)       |
+| `clipboard_monitoring_enabled` | Toggle clipboard-copy logging on/off (default true - most privacy-sensitive DLP feature, review before enabling for a real org) |
 | `screen_record_enabled`        | Toggle periodic screen recording on/off (default false, see limitations)|
 | `screen_record_interval_seconds`| How often to start a new recording (default 600)                       |
 | `screen_record_duration_seconds`| Length of each recording, server caps at 300s (default 60)             |
@@ -148,5 +163,6 @@ Agent/
     ├── screenshot.py        multi-monitor screenshot capture
     ├── screen_record.py      periodic screen recording capture (mp4)
     ├── remote_control.py    live Screen Cast + remote-control WebSocket client
+    ├── system_logs.py       USB detection + clipboard monitoring (DLP tabs)
     └── tray_ui.py           system tray icon + login popup
 ```

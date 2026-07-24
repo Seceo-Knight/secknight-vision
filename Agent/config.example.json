@@ -12,6 +12,8 @@
   "screenshots_enabled": true,
   "idle_detection_enabled": true,
   "remote_control_enabled": true,
+  "usb_detection_enabled": true,
+  "clipboard_monitoring_enabled": true,
 
   "screen_record_enabled": false,
   "screen_record_interval_seconds": 600,

@@ -16,6 +16,7 @@ from . import screen_record as screen_record_mod
 from .api_client import ApiClient, ApiError
 from .config import Config
 from .remote_control import RemoteControlClient
+from .system_logs import ClipboardMonitor, UsbMonitor
 from .tracker import ActivityTracker
 from .tray_ui import TrayApp, prompt_login
 
@@ -31,6 +32,8 @@ class Agent:
         self.tray = TrayApp(on_quit=self._quit)
         self.tracker = ActivityTracker(self.config, on_batch_ready=self._on_batch_ready)
         self.remote_control = RemoteControlClient(self.config, get_access_token=lambda: self.client.access_token)
+        self.usb_monitor = UsbMonitor(on_event=self._on_system_event)
+        self.clipboard_monitor = ClipboardMonitor(on_event=self._on_system_event)
         self._running = False
         self._screenshot_thread = None
         self._screen_record_thread = None
@@ -74,6 +77,21 @@ class Agent:
                 self.tray.set_status("Session expired — signing in again")
             else:
                 self.tray.set_status("Sync failed — will retry")
+
+    # ------------------------------------------------------------ system logs
+    def _on_system_event(self, event: dict):
+        # USB/clipboard events arrive one at a time from their own
+        # background threads (not batched like activity), so just fire
+        # each one off individually - infrequent enough that this isn't a
+        # meaningful volume of extra requests.
+        try:
+            self.client.send_system_events([event])
+        except ApiError as exc:
+            if exc.is_auth_error:
+                self.client.clear_session(self.session_path)
+                self._needs_relogin = True
+        except Exception:
+            pass
 
     # ----------------------------------------------------------- screenshots
     def _screenshot_loop(self):
@@ -129,6 +147,12 @@ class Agent:
         self.tracker.start()
         self.remote_control.start()
 
+        if self.config.usb_detection_enabled:
+            self.usb_monitor.start()
+
+        if self.config.clipboard_monitoring_enabled:
+            self.clipboard_monitor.start()
+
         if self.config.screenshots_enabled:
             self._screenshot_thread = threading.Thread(target=self._screenshot_loop, daemon=True)
             self._screenshot_thread.start()
@@ -156,6 +180,8 @@ class Agent:
         self._running = False
         self.tracker.stop()
         self.remote_control.stop()
+        self.usb_monitor.stop()
+        self.clipboard_monitor.stop()
         self.tray.stop()
         sys.exit(0)
 
