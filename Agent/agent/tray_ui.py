@@ -177,6 +177,19 @@ class TrayApp:
     def set_status(self, text: str):
         self._status_text = text
         if self._icon:
+            # update_menu() alone is unreliable for refreshing an already-
+            # open/cached menu on Windows - the dropdown item text can get
+            # stuck showing a stale value (e.g. a one-off "Sync failed"
+            # that never visually updates back to "Active" even though
+            # later syncs are actually succeeding). Also set the icon's
+            # hover tooltip (title), which Windows always redraws
+            # immediately and independently of the dropdown menu, so the
+            # real current status is visible either way.
+            try:
+                self._icon.title = f"SecKnight Vision Agent — {text}"
+            except Exception:
+                pass
+            self._icon.menu = self._build_menu()
             self._icon.update_menu()
 
     def start(self):

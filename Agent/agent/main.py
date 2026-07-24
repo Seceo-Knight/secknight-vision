@@ -71,12 +71,24 @@ class Agent:
             self.client.send_activity(sign, [item])
             self.tray.set_status(f"Active — last sync {time.strftime('%H:%M:%S')}")
         except ApiError as exc:
+            print(f"[activity] send_activity failed: {exc} (status={exc.status_code})")
             if exc.is_auth_error:
                 self.client.clear_session(self.session_path)
                 self._needs_relogin = True
                 self.tray.set_status("Session expired — signing in again")
             else:
                 self.tray.set_status("Sync failed — will retry")
+        except Exception as exc:
+            # Anything else (connection refused, timeout, DNS failure, etc.)
+            # is NOT an ApiError - it used to fall through uncaught here and
+            # get silently swallowed by tracker.py's _flush_batch(), which
+            # left the tray stuck showing whatever status was set last
+            # (e.g. a stale "Sync failed") instead of ever reflecting what's
+            # actually happening right now. Log it and update the tray so a
+            # real, ongoing problem is visible instead of an ambiguous
+            # frozen label.
+            print(f"[activity] unexpected error sending activity: {exc!r}")
+            self.tray.set_status("Sync failed — will retry")
 
     # ------------------------------------------------------------ system logs
     def _on_system_event(self, event: dict):
