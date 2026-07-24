@@ -221,6 +221,8 @@ const getAlertPolicies = async ({
                     notifyAs: policy.is_action_notify === 1 ? "Alert, Email" : "Email",
                     conditions: policy.conditions || [],
                     appliesTo: policy.include_employees?.ids || [],
+                    locations: policy.include_employees?.locations || [],
+                    departments: policy.include_employees?.departments || [],
                     allEmployees: policy.include_employees?.all_employees,
                     allLocations: policy.include_employees?.all_locations,
                     allDepartments: policy.include_employees?.all_departments,

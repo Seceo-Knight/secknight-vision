@@ -249,6 +249,8 @@ export const useAlertRulesStore = create((set, get) => ({
                 webAppType: policy.conditions?.[0]?.type === "APP" ? "APP" : "DMN",
                 webAppValue: policy.conditions?.[0]?.cmp_argument || "",
             },
+            selectedLocationIds: policy.include_employees?.locations || [],
+            selectedDepartmentIds: policy.include_employees?.departments || [],
             selectedEmployeeIds: policy.include_employees?.ids || [],
             selectedNotifyIds: policy.recipients?.map((r) => r.user_id) || [],
         });

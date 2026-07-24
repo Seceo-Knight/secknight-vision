@@ -120,6 +120,8 @@ const EmpAlertPolicies = () => {
             recipients: policy.recipients,
             include_employees: {
                 ids: policy.appliesTo.map((e) => e.id ?? e),
+                locations: policy.locations || [],
+                departments: policy.departments || [],
                 all_employees: policy.allEmployees,
                 all_locations: policy.allLocations,
                 all_departments: policy.allDepartments,
