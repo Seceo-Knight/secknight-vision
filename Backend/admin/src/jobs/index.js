@@ -24,9 +24,14 @@ const connectionDetails = {
 
 const queues = ['default'];
 
+// Was hardcoded to always return before logging anything (`if (true || ...)`),
+// which silenced every node-resque event - worker start, job success/failure,
+// connection errors - in every environment, including production. That made
+// a real worker-startup failure completely invisible in pm2 logs. Log
+// unconditionally; these are operationally important (this IS the alert
+// pipeline), not debug noise.
 const log = (...args) => {
-    if (true || process.env.NODE_ENV !== 'development') return;
-    console.log(...args);
+    console.log('[alert-jobs]', ...args);
 };
 
 const multiWorker = new MultiWorker(
