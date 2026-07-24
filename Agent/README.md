@@ -93,21 +93,26 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 
-copy config.example.json config.json
-# edit config.json: set auth_base_url, data_base_url, socket_url to your
-# server's address/ports, and crypto_password to match EXACTLY the
-# CRYPTO_PASSWORD value in your server's Backend/desktop/.env and
-# Backend/store-logs-api/.env (both must already match each other).
-#
-# socket_url must point at Backend/realtime (NOT Backend/remote_socket -
-# that service is unused by the current Frontend, despite implementing an
-# almost identical protocol; the agent will authenticate fine against it but
-# the admin UI will never show it as online). Confirm the real port with:
-# grep PORT Backend/realtime/.env on the server, or
-# `pm2 logs realtime --lines 5 --nostream` and read the startup line.
-
 python run_agent.py
 ```
+
+No `config.json` yet? The agent shows a one-time "Connect to your SecKnight
+Vision server" setup dialog on first launch instead of failing - enter the
+server's address (IP or domain) and the crypto password, and it writes
+`config.json` next to itself from there (`auth_base_url`/`data_base_url`/
+`socket_url` are derived automatically using the fixed ports every
+`deploy.sh` install uses: desktop=3004, store-logs-api=3001, realtime=3006).
+Delete `config.json` any time to redo this.
+
+If you'd rather skip the dialog (e.g. scripting a dev setup), you can still
+`copy config.example.json config.json` and fill it in by hand before running
+- see the field reference below. Same caveat as always: `crypto_password`
+must byte-for-byte match `CRYPTO_PASSWORD` in the server's
+`Backend/desktop/.env` and `Backend/store-logs-api/.env`, and `socket_url`
+must point at `Backend/realtime` (NOT `Backend/remote_socket` - that service
+is unused by the current Frontend, despite implementing an almost identical
+protocol; the agent will authenticate fine against it but the admin UI will
+never show it as online).
 
 ## Building a standalone .exe
 
@@ -119,10 +124,14 @@ pip install -r requirements.txt
 pyinstaller build.spec
 ```
 
-Output: `dist/SecKnightVisionAgent/SecKnightVisionAgent.exe`. Copy your
-filled-in `config.json` into that same `dist/SecKnightVisionAgent/` folder
-before distributing/running it — the agent looks for `config.json` next to
-the executable.
+Output: `dist/SecKnightVisionAgent/SecKnightVisionAgent.exe`. This is now a
+single generic build - it does NOT need a pre-filled `config.json` baked in
+before distributing. Hand the whole `dist/SecKnightVisionAgent/` folder to
+any machine on any SecKnight Vision deployment; the first launch shows the
+server-setup dialog described above and writes its own `config.json`. (You
+can still pre-drop a filled-in `config.json` into that folder before
+distributing if you want a silent, no-prompt install for a specific
+deployment - the dialog only appears when the file is missing.)
 
 ## Config reference (`config.json`)
 

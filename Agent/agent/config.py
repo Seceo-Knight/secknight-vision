@@ -69,10 +69,7 @@ class Config:
     def __init__(self, path: str = None):
         self.path = path or os.path.join(_base_dir(), "config.json")
         if not os.path.exists(self.path):
-            raise FileNotFoundError(
-                f"config.json not found at {self.path}. Copy config.example.json to "
-                f"config.json next to the executable and fill in your server URLs."
-            )
+            self._run_first_time_setup()
         with open(self.path, "r") as f:
             data = json.load(f)
 
@@ -88,3 +85,32 @@ class Config:
         self.data_base_url = self.data_base_url.rstrip("/")
         if getattr(self, "socket_url", None):
             self.socket_url = self.socket_url.rstrip("/")
+
+    def _run_first_time_setup(self):
+        """
+        No config.json next to the exe yet - this is a first run on a fresh
+        machine. Rather than requiring a per-deployment config.json baked in
+        before building/distributing the .exe (which meant a separate build
+        for every customer, and no way for an installer to fix a typo'd
+        server address afterwards without editing raw JSON), prompt for the
+        server address once via a GUI dialog and persist the result here.
+        One generic .exe build now works against any SecKnight Vision
+        deployment.
+        """
+        # Local import - tkinter/pystray shouldn't be a hard dependency of
+        # every Config() construction, only the first-run path that needs it.
+        from .tray_ui import prompt_server_setup
+
+        error = None
+        while True:
+            answers = prompt_server_setup(error_message=error)
+            if not answers:
+                # User closed the setup dialog - nothing to run against.
+                sys.exit(0)
+            data = {**DEFAULTS, **answers}
+            try:
+                with open(self.path, "w") as f:
+                    json.dump(data, f, indent=2)
+                return
+            except OSError as exc:
+                error = f"Couldn't save config.json: {exc}"

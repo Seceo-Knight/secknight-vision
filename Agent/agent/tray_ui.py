@@ -69,6 +69,93 @@ def prompt_login(error_message=None):
     return LoginWindow(error_message=error_message).run()
 
 
+class ServerSetupWindow:
+    """
+    Blocking tkinter dialog shown once, on first launch, when no config.json
+    exists next to the executable yet. Lets whoever is installing the agent
+    (IT admin, not the end employee) type the server address instead of
+    needing a pre-baked config.json per customer/deployment - the same
+    packaged .exe can be handed to any SecKnight Vision deployment this way.
+
+    Returns a dict of config fields (auth_base_url/data_base_url/socket_url/
+    crypto_password) built from the fixed port convention every deploy.sh
+    install uses (desktop=3004, store-logs-api=3001, realtime=3006 - see
+    deploy_service() calls in deploy.sh), or None if cancelled.
+    """
+
+    def __init__(self, app_title="SecKnight Vision Agent - Setup", error_message=None):
+        self.result = None
+        self.root = tk.Tk()
+        self.root.title(app_title)
+        self.root.geometry("380x330")
+        self.root.resizable(False, False)
+
+        tk.Label(self.root, text="Connect to your SecKnight Vision server", font=("Segoe UI", 12, "bold")).pack(pady=(18, 4))
+        tk.Label(self.root, text="One-time setup - ask your admin if unsure", fg="#666").pack(pady=(0, 10))
+
+        if error_message:
+            tk.Label(self.root, text=error_message, fg="red", wraplength=330).pack(pady=(0, 8))
+
+        form = tk.Frame(self.root)
+        form.pack(padx=24, fill="x")
+
+        tk.Label(form, text="Server address (IP or domain)").grid(row=0, column=0, sticky="w")
+        self.server_entry = tk.Entry(form, width=34)
+        self.server_entry.grid(row=1, column=0, pady=(0, 10))
+        self.server_entry.insert(0, "e.g. 192.168.1.68")
+        self.server_entry.config(fg="grey")
+        self.server_entry.bind("<FocusIn>", self._clear_placeholder)
+
+        self.use_https = tk.BooleanVar(value=False)
+        tk.Checkbutton(form, text="Use HTTPS (server has an SSL certificate)", variable=self.use_https).grid(
+            row=2, column=0, sticky="w", pady=(0, 10)
+        )
+
+        tk.Label(form, text="Crypto password (from your server admin)").grid(row=3, column=0, sticky="w")
+        self.crypto_entry = tk.Entry(form, width=34, show="*")
+        self.crypto_entry.grid(row=4, column=0, pady=(0, 14))
+
+        btn = tk.Button(self.root, text="Connect", width=14, command=self._on_submit)
+        btn.pack()
+        self.root.bind("<Return>", lambda _e: self._on_submit())
+        self.server_entry.focus()
+
+    def _clear_placeholder(self, _event):
+        if self.server_entry.get() == "e.g. 192.168.1.68":
+            self.server_entry.delete(0, tk.END)
+            self.server_entry.config(fg="black")
+
+    def _on_submit(self):
+        server = self.server_entry.get().strip()
+        crypto_password = self.crypto_entry.get().strip()
+        if not server or server == "e.g. 192.168.1.68":
+            messagebox.showerror("Missing info", "Enter your server's address (IP or domain).")
+            return
+        if not crypto_password:
+            messagebox.showerror("Missing info", "Enter the crypto password provided by your server admin.")
+            return
+        # Strip any protocol/port the user might have pasted in by habit -
+        # we derive both from the fixed port convention below.
+        server = server.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
+        protocol = "https" if self.use_https.get() else "http"
+        ws_protocol = "wss" if self.use_https.get() else "ws"
+        self.result = {
+            "auth_base_url": f"{protocol}://{server}:3004",
+            "data_base_url": f"{protocol}://{server}:3001",
+            "socket_url": f"{ws_protocol}://{server}:3006",
+            "crypto_password": crypto_password,
+        }
+        self.root.destroy()
+
+    def run(self):
+        self.root.mainloop()
+        return self.result
+
+
+def prompt_server_setup(error_message=None):
+    return ServerSetupWindow(error_message=error_message).run()
+
+
 class TrayApp:
     """Wraps pystray in its own thread so it doesn't block the tracker."""
 
