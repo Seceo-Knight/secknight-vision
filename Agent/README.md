@@ -114,6 +114,35 @@ is unused by the current Frontend, despite implementing an almost identical
 protocol; the agent will authenticate fine against it but the admin UI will
 never show it as online).
 
+## Updating this folder on a machine where `git pull` doesn't work
+
+If you're building on a separate Windows machine that isn't set up with git
+push/pull access to this repo (only the server usually is), don't try to
+hand-copy just the one or two files you think changed - it's easy to miss
+one and end up with a confusing mix of old and new code (e.g. a rebuilt
+`.exe` that still crashes with an old error even though you meant to fix
+it). Instead, every time there's an update:
+
+1. On GitHub, click **Code > Download ZIP** and extract it fresh.
+2. Copy the **entire** `Agent` folder out of the extracted ZIP and use it
+   as your whole working folder from now on (rename it to whatever you
+   were calling it before, e.g. `SecKnightVisionAgent`) - don't merge
+   individual files into an old folder.
+3. Rebuild: `pip install -r requirements.txt` then `pyinstaller build.spec`.
+4. **Test the raw exe first**, before touching the installer:
+   double-click `dist/SecKnightVisionAgent/SecKnightVisionAgent.exe`
+   directly and confirm it behaves as expected (e.g. shows the setup
+   wizard, logs in, etc.) - much faster feedback than rebuilding the
+   Inno Setup installer too and finding out something's still broken.
+5. Check `agent.log` (written next to the exe, see "Building a standalone
+   .exe" below) to confirm it's actually working - look for a login
+   success and activity/remote-control being sent, with no traceback.
+   This is more reliable than checking the admin dashboard, since
+   Attendance/status indicators there only refresh periodically and can
+   look stale for a few minutes even when the agent is working fine.
+6. Only once step 4-5 look right, rebuild the installer
+   (`installer.iss` in Inno Setup) and test that.
+
 ## Building a standalone .exe
 
 Only step you need to run yourself (this repo's build environment can't
