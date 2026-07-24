@@ -367,6 +367,14 @@ set_env .env CRYPTO_PASSWORD "${CRYPTO_PASSWORD}"
 set_env .env REDIS_HOST localhost
 set_env .env WEB_SOCKET_SERVER_URL "${WEBSOCKET_URL}"
 set_env .env ALERT_SERVICE_URL "http://localhost:3000"
+# Gates the node-resque worker/scheduler that actually processes Behaviour >
+# Alerts rules (adminApi.js only calls multiWorker.start()/scheduler.start()
+# when this is 'true'). Defaults to 'false' in .env.example, which silently
+# breaks the entire Alerts/Alert Policies/Alert Notification feature - rule
+# conditions still get evaluated, but the final sendAlertJob step that writes
+# to notification_rule_alerts and sends email/websocket notifications never
+# runs, with no visible error anywhere. Force it on for every fresh deploy.
+set_env .env IS_ALERT_SERVICE_ENABLED true
 set_env .env WEB_LOCAL "http://${SERVER_IP}/"
 set_env .env WEB_DEV "http://${SERVER_IP}/"
 set_env .env WEB_PRODUCTION "http://${SERVER_IP}/"
