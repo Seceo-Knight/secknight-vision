@@ -133,6 +133,55 @@ can still pre-drop a filled-in `config.json` into that folder before
 distributing if you want a silent, no-prompt install for a specific
 deployment - the dialog only appears when the file is missing.)
 
+That raw `dist/` folder is fine for testing, but it's not something you'd
+hand an employee - no Start Menu entry, no uninstaller, and nothing makes
+it start automatically. For real deployment, build the real installer below
+instead.
+
+## Building a real installer (recommended for actual deployment)
+
+The raw `dist/SecKnightVisionAgent/` folder above is a portable app, not an
+installer - double-clicking the `.exe` inside it just runs the agent, it
+doesn't "install" anything. For handing this to an employee's machine, build
+a proper installer with [Inno Setup](https://jrsoftware.org/isinfo.php)
+(free) using the included `installer.iss` script:
+
+```bash
+pip install -r requirements.txt
+pyinstaller build.spec              # must succeed first - installer.iss packages its output
+```
+
+Then, in Inno Setup on Windows: open `installer.iss` and press **Compile**
+(or right-click the file in Explorer > Compile). Output:
+`Output/SecKnightVisionAgentSetup.exe`.
+
+Running that gives a real **Next > Install > Finish** wizard:
+
+- Installs to the current Windows user's own Program Files folder - no
+  admin/UAC prompt needed, works on a standard employee account
+- Adds a Start Menu entry and a proper uninstaller (Control Panel/Settings
+  > Apps)
+- **"Start automatically when Windows starts" is checked by default** on
+  the Tasks page - this is what makes the agent not need to be manually
+  opened every day. Mechanically it's just a shortcut placed in that
+  user's Startup folder (`shell:startup`), which Windows launches
+  automatically at every login, no registry/scheduled-task setup needed
+- Offers to launch the agent immediately once install finishes
+
+Login itself already survives restarts on top of this - `session.json`
+(saved next to `config.json`) is checked before the login popup ever shows,
+so once someone signs in once, the daily flow becomes fully hands-off:
+Windows starts -> Startup shortcut launches the agent -> saved session is
+reused -> tray icon goes "Active" with no popup at all. The login popup
+only reappears if that saved session actually expires or is rejected by
+the server.
+
+For pushing this to many machines at once (vs. one employee running the
+installer by hand), Inno Setup's output already supports silent installs
+out of the box: `SecKnightVisionAgentSetup.exe /VERYSILENT` installs with
+no UI at all (auto-start task stays checked by default), which a script or
+RMM/deployment tool can call per machine.
+
 ## Config reference (`config.json`)
 
 | Field                         | Description                                                              |
@@ -160,6 +209,7 @@ deployment - the dialog only appears when the file is missing.)
 Agent/
 ├── run_agent.py           entry point
 ├── build.spec              PyInstaller spec
+├── installer.iss           Inno Setup script - builds the real installer (auto-start included)
 ├── requirements.txt
 ├── config.example.json     copy to config.json and fill in
 └── agent/
