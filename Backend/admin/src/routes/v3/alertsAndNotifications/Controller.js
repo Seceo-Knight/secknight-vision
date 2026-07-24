@@ -4,6 +4,23 @@ const sendResponse = require('../../../utils/myService').sendResponse;
 const actionsTracker = require('../services/actionsTracker');
 const { Model: AppModel } = require('../organization/appNames');
 const { commonMessages } = require('../../../utils/helpers/LanguageTranslate');
+const jobs = require('../../../jobs');
+
+// activityCreatedJobs() (Backend/admin/src/jobs/alertsAndNotifications/activityCreatedJob.js)
+// caches an org's full rule list in Redis under this key for 30 minutes so it
+// doesn't re-hit MySQL on every single activity batch. That's fine once rules
+// exist, but it means a rule created/edited/deleted right after this cache
+// was set (including the very first rule ever created for an org, which
+// caches as an empty {}) is invisible to real-time checks for up to 30
+// minutes with no visible error. Drop the cache on every CRUD so the next
+// activity batch always re-reads fresh from MySQL.
+const invalidateRulesCache = async (organization_id) => {
+    try {
+        await jobs.redis.del(`rules.${organization_id}`);
+    } catch (err) {
+        console.error(`invalidateRulesCache [org ${organization_id}] failed:`, err.message);
+    }
+};
 
 const ruleDataPrepare = async (organization_id, ruleData) => {
     if ('conditions' in ruleData) {
@@ -43,6 +60,7 @@ class Controller {
                 updated_by: user_id
             });
             actionsTracker(req, 'Organization notification rule %i created.', [created.insertId]);
+            await invalidateRulesCache(organization_id);
             return sendResponse(res, 200, { id: created.insertId }, 'Entity created.', null);
         } catch (error) {
             return sendResponse(res, 400, null, 'Some error occured');
@@ -70,6 +88,7 @@ class Controller {
         );
 
         actionsTracker(req, 'Organization notification rule %i updated.', [entity.id]);
+        await invalidateRulesCache(organization_id);
         return sendResponse(res, 200, { id: entity.id }, 'Entity updated.', null);
     }
 
@@ -109,6 +128,7 @@ class Controller {
 
         await NotificationRulesModel.delete(validation.value.id);
         actionsTracker(req, 'Organization notification rule %i deleted.', [entity.id]);
+        await invalidateRulesCache(organization_id);
         return sendResponse(res, 200, { id: entity.id }, 'Entity deleted.', null);
     }
 
