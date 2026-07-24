@@ -11,6 +11,8 @@ import threading
 import time
 import uuid
 
+import psutil
+
 from . import screenshot as screenshot_mod
 from . import screen_record as screen_record_mod
 from .api_client import ApiClient, ApiError
@@ -23,6 +25,68 @@ from .tray_ui import TrayApp, prompt_login
 
 def _get_mac_id() -> str:
     return f"{uuid.getnode():012x}"
+
+
+def _lock_file_path() -> str:
+    # Same "next to the exe/script" convention as config.py's _base_dir(),
+    # kept independent (not imported from there) so the single-instance
+    # check can run before Config() does any of its own first-run-wizard
+    # work.
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, "agent.lock")
+
+
+def _acquire_single_instance_lock() -> bool:
+    """
+    Returns True if this is the only copy of the agent running and it's
+    safe to continue, False if another copy is already running (caller
+    should exit immediately without doing anything else).
+
+    Nothing previously stopped this agent from running more than once at
+    a time - e.g. Windows Startup auto-launching it AND someone also
+    double-clicking the exe by hand, or several leftover copies from
+    testing - which was observed producing several duplicate tray icons
+    all separately (and uselessly) retrying sync at the same time, each
+    logged in under its own session.
+
+    Uses a PID file next to the exe rather than an OS-level lock so the
+    same approach works cross-platform: on startup, check whether the PID
+    recorded in agent.lock is (a) still running and (b) actually looks
+    like this agent (not some unrelated process that happened to reuse
+    that PID after a crash/force-kill left a stale lock file behind).
+    """
+    path = _lock_file_path()
+    try:
+        if os.path.exists(path):
+            with open(path) as f:
+                old_pid_str = f.read().strip()
+            if old_pid_str.isdigit():
+                old_pid = int(old_pid_str)
+                if psutil.pid_exists(old_pid):
+                    try:
+                        name = psutil.Process(old_pid).name().lower()
+                    except psutil.Error:
+                        name = ""
+                    if "secknight" in name or "python" in name:
+                        return False
+        with open(path, "w") as f:
+            f.write(str(os.getpid()))
+        return True
+    except OSError:
+        # Don't block startup just because the lock file itself couldn't
+        # be read/written - worst case, no duplicate-instance protection
+        # this run.
+        return True
+
+
+def _release_single_instance_lock():
+    try:
+        os.remove(_lock_file_path())
+    except OSError:
+        pass
 
 
 class Agent:
@@ -199,12 +263,19 @@ class Agent:
 
 
 def main():
-    if platform.system() != "Windows":
-        print(
-            "Warning: remote-control and some window-tracking features are "
-            "Windows-only in this build; running with reduced functionality."
-        )
-    Agent().run()
+    if not _acquire_single_instance_lock():
+        print("SecKnight Vision Agent is already running - exiting this duplicate instance.")
+        return
+
+    try:
+        if platform.system() != "Windows":
+            print(
+                "Warning: remote-control and some window-tracking features are "
+                "Windows-only in this build; running with reduced functionality."
+            )
+        Agent().run()
+    finally:
+        _release_single_instance_lock()
 
 
 if __name__ == "__main__":
