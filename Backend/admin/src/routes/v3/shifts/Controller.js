@@ -35,8 +35,8 @@ class Controller {
             if (created.affectedRows == 0) return sendResponse(res, 400, null, shiftMessages.find(x => x.id === "3")[language] || shiftMessages.find(x => x.id === "3")["en"], null);
             let data = await modifyData(req.body.data)
             return sendResponse(res, 200, { id: created.insertId, organization_id, name: req.body.name, data: data, created_by, update_by: created_by, notes: req.body.notes || null, location_id: req.body.location_id, color_code: req.body.color_code || null,
-                late_period: req.body.late_period ||Number(value?.late_period.split(":")[1]),
-                early_login_logout_time: req.body.early_login_logout_time ||Number(value?.early_login_logout_time.split(":")[1]),
+                late_period: req.body.late_period || hhmmToMinutes(value?.late_period),
+                early_login_logout_time: req.body.early_login_logout_time || hhmmToMinutes(value?.early_login_logout_time),
                 half_day_hours: value?.half_day_hours,
                 overtime_period: value?.overtime_period,
                 productivity_halfday: value?.productivity_halfday,
@@ -84,8 +84,8 @@ class Controller {
                 organization_id,
                 name,
                 data,
-                late_period:Number(late_period.split(":")[1]),
-                early_login_logout_time:Number(early_login_logout_time.split(":")[1]), 
+                late_period: hhmmToMinutes(late_period),
+                early_login_logout_time: hhmmToMinutes(early_login_logout_time),
                 half_day_hours,
                 overtime_period,
                 productivity_halfday,
@@ -229,10 +229,34 @@ function modifyData(data) {
 
     return JSON.stringify(str);
 }
+// Converts a plain minutes count (what the Late Login / Early Logout number
+// inputs send) into "HH:MM" for storage. Total minutes, not just the raw
+// number crammed into the MM slot - the previous version did
+// `00:${String(value).padStart(2,'0')}`, which silently produced an
+// invalid string like "00:90" for anything >= 60 minutes (90 minutes is
+// exactly what "grace period before 5pm on an 18:30 shift" requires), and
+// moment.duration() does not reliably parse that back into 90 minutes.
+function minutesToHHMM(totalMinutes) {
+    const minutes = Math.max(0, Math.round(Number(totalMinutes) || 0));
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+}
+
+// Inverse of minutesToHHMM - used when sending late_period/early_login_logout_time
+// back to the Frontend, which expects a single total-minutes number for
+// those two fields (unlike half_day_hours/overtime_period, which stay as
+// "HH:MM" pairs end to end).
+function hhmmToMinutes(hhmm) {
+    if (!hhmm) return 0;
+    const [h, m] = String(hhmm).split(':');
+    return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+}
+
 //to convert input numbers into required time format 00:00
 function transformingData(value){
-    (value.late_period || value.late_period === 0) ? value.late_period =`00:${String(value.late_period).padStart(2, '0')}`: null ;
-    (value.early_login_logout_time|| value.early_login_logout_time === 0) ?value.early_login_logout_time=`00:${String(value.early_login_logout_time).padStart(2, '0')}`:null;
-   
+    (value.late_period || value.late_period === 0) ? value.late_period = minutesToHHMM(value.late_period) : null;
+    (value.early_login_logout_time || value.early_login_logout_time === 0) ? value.early_login_logout_time = minutesToHHMM(value.early_login_logout_time) : null;
+
     return value;
 }

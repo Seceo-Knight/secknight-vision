@@ -82,8 +82,20 @@ const CreateShift = ({ mode = "create" }) => {  const { t } = useTranslation();
             setShiftName(editShiftData.name || "")
             setSelectedColor(editShiftData.color_code || 1)
             setNote(editShiftData.notes || "")
-            setLateLogin(String(editShiftData.late_period ?? 0))
-            setEarlyLogout(String(editShiftData.early_login_logout_time ?? 0))
+            // late_period/early_login_logout_time can arrive as either a raw
+            // "HH:MM" string (list/get endpoints return the DB value as-is)
+            // or a plain total-minutes number (create/update responses) -
+            // normalize both to total minutes for these single-number fields.
+            const parseMinutesField = (val) => {
+                if (val === null || val === undefined || val === "") return "0"
+                if (typeof val === "string" && val.includes(":")) {
+                    const [h, m] = val.split(":")
+                    return String((parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0))
+                }
+                return String(val)
+            }
+            setLateLogin(parseMinutesField(editShiftData.late_period))
+            setEarlyLogout(parseMinutesField(editShiftData.early_login_logout_time))
 
             // Parse HH:MM fields
             const parseHM = (val) => {
@@ -367,7 +379,7 @@ const CreateShift = ({ mode = "create" }) => {  const { t } = useTranslation();
                                         value={lateLogin}
                                         onChange={(e) => setLateLogin(e.target.value)}
                                         min="0"
-                                        max="60"
+                                        max="240"
                                         step="5"
                                         className="h-9 rounded-lg border-slate-200 text-xs"
                                     />
@@ -382,7 +394,7 @@ const CreateShift = ({ mode = "create" }) => {  const { t } = useTranslation();
                                         value={earlyLogout}
                                         onChange={(e) => setEarlyLogout(e.target.value)}
                                         min="0"
-                                        max="60"
+                                        max="240"
                                         step="5"
                                         className="h-9 rounded-lg border-slate-200 text-xs"
                                     />
