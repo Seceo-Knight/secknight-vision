@@ -126,7 +126,7 @@ const calcAttendance = async (activity, key, compact = false) => {
     }
 };
 
-const rulesByAttendance = async (attendance, rulesEntities) => {
+const rulesByAttendance = async (attendance, rulesEntities, activity) => {
     try {
         const key = `rules.${attendance.orgId}`;
         const { redis } = jobs;
@@ -138,12 +138,17 @@ const rulesByAttendance = async (attendance, rulesEntities) => {
         // const rulesEntities = await Notification.NotificationRulesModel.findAllBy({
         //     organization_id: attendance.orgId,
         // });
-        const start = attendance.shift.start * 1000;
-        const end = attendance.shift.end * 1000;
+        // Skip a rule only for activity that happened BEFORE the rule was last
+        // saved - avoids retroactively judging behavior against a rule that
+        // didn't exist yet in its current form. Previously this compared
+        // rule.updated_at against the WHOLE shift's start/end window, which
+        // excluded the rule for the entire rest of the day the instant it was
+        // edited during shift hours - even for activity well after the edit
+        // (e.g. editing a rule at 1pm silently blocked it for someone going
+        // idle at 5pm the same day).
+        const activityEndMs = activity && activity.end_time ? +moment(activity.end_time) : null;
         for (const rule of rulesEntities) {
-            if (attendance.shift.start) {
-                if (+rule.updated_at > start && +rule.updated_at < end) continue;
-            }
+            if (activityEndMs && +rule.updated_at > activityEndMs) continue;
             rules[rule.type] = rules[rule.type] || [];
             rules[rule.type].push(await Notification.NotificationRulesModel.get(rule.id));
         }
@@ -181,7 +186,7 @@ const handleActivityCreated = async (attendance, attendanceByActivity, activity,
         }
         involveHandlers = _.unique(involveHandlers);
 
-        const rules = isRule == true ? tempRules : await rulesByAttendance(attendance, rulesEntities);
+        const rules = isRule == true ? tempRules : await rulesByAttendance(attendance, rulesEntities, activity);
         const handler = (type) => {
             return (rule) => {
                 if (
