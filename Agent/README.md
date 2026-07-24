@@ -45,6 +45,53 @@ compatibility shim — read directly from the backend source:
   in the config reference below before enabling for a real org
 - Periodic screen recordings (off by default — see limitation below)
 
+## Installing on an employee's Windows PC (no coding needed)
+
+Most people don't need to build anything - just download the ready-made
+installer and run it:
+
+1. Go to the [Releases page](https://github.com/Seceo-Knight/secknight-vision/releases)
+   and find the latest release starting with `agent-` (e.g. `agent-v1.0.0`).
+2. Under **Assets**, click `SecKnightVisionAgentSetup.exe` to download it.
+3. Run the downloaded file. Click through the installer:
+   **Next > Next > Install > Finish**. Leave **"Start SecKnight Vision
+   Agent automatically when Windows starts"** checked on the Tasks page -
+   this is what makes it launch on its own every day without anyone having
+   to open or log into it manually.
+4. On first launch, a small **"Connect to your SecKnight Vision server"**
+   window appears, asking for:
+   - **Server address** - the IP or domain of your SecKnight Vision
+     server (ask whoever manages it, e.g. `192.168.1.68`)
+   - **Crypto password** - see below for how to get this
+5. After that, it asks for a normal **email + password** login - use the
+   employee's SecKnight Vision account. Once logged in, the agent runs
+   quietly in the system tray from then on - no popup on future logins
+   unless that saved session actually expires.
+
+### Where to get the crypto password
+
+This is a secret value set once when the SecKnight Vision **server** was
+deployed - it's the same for every employee on that server, so ask your
+server admin for it if you don't have server access yourself.
+
+If you *do* have SSH/terminal access to the server, get it directly by
+running this on the server:
+
+```bash
+grep CRYPTO_PASSWORD ~/secknight-vision/Backend/desktop/.env
+```
+
+This prints a line like `CRYPTO_PASSWORD=abcdEXAMPLE1234567890xyz`. Copy
+only the part **after** the `=` sign (no quotes, no spaces) - that's what
+goes into the "Crypto password" field in step 4 above. It must match
+exactly, or login will fail.
+
+---
+
+Everything below this point is only needed if you're changing the agent's
+source code and need to rebuild/repackage it - most people installing this
+on an employee's PC only need the section above.
+
 ## Known limitations (v1)
 
 - Windows-only for window tracking and remote control (uses `pywin32`).
