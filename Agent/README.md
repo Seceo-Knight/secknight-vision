@@ -258,6 +258,25 @@ out of the box: `SecKnightVisionAgentSetup.exe /VERYSILENT` installs with
 no UI at all (auto-start task stays checked by default), which a script or
 RMM/deployment tool can call per machine.
 
+## Changing a setting after installing
+
+To change any setting below (e.g. turning on screen recording) on a machine
+that already has the agent installed and running:
+
+1. **Quit the agent first** - right-click its tray icon (bottom-right,
+   near the clock) → **Quit** (or End Task on `SecKnightVisionAgent.exe`
+   in Task Manager if you don't see the tray icon).
+2. Open File Explorer and go to (paste this into the address bar):
+   - If installed via `SecKnightVisionAgentSetup.exe` (the real
+     installer): `%LOCALAPPDATA%\Programs\SecKnightVisionAgent`
+   - If running the raw `dist/` build directly (development/testing):
+     `dist\SecKnightVisionAgent` next to `SecKnightVisionAgent.exe`
+3. Right-click `config.json` → **Open with → Notepad**, change the value
+   you want, save (Ctrl+S), and close Notepad.
+4. Double-click `SecKnightVisionAgent.exe` again to relaunch it - it logs
+   back in automatically using the saved session (`session.json`), no
+   login popup, and picks up the new setting immediately.
+
 ## Config reference (`config.json`)
 
 | Field                         | Description                                                              |
